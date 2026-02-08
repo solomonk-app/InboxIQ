@@ -177,7 +177,19 @@ router.get("/google/callback", async (req: Request, res: Response) => {
       ? `${process.env.EXPO_DEV_URL}/--/auth?${params}`
       : `inboxiq://auth?${params}`;
 
-    res.redirect(deepLink);
+    // Use HTML redirect instead of 302 — Safari/ASWebAuthenticationSession
+    // handles JavaScript redirects to custom schemes more reliably
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"></head>
+        <body>
+          <script>window.location.href = "${deepLink}";</script>
+          <p>Redirecting to InboxIQ...</p>
+          <a href="${deepLink}">Tap here if not redirected</a>
+        </body>
+      </html>
+    `);
   } catch (err) {
     console.error("OAuth callback error:", err);
     res.status(500).json({ error: "Authentication failed" });
