@@ -78,7 +78,7 @@ async function handleExchange(code: string, redirectUri: string, res: Response) 
   const token = jwt.sign(
     { userId: user.id, email: user.email },
     process.env.JWT_SECRET!,
-    { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
+    { expiresIn: (process.env.JWT_EXPIRES_IN || "7d") as string & jwt.SignOptions["expiresIn"] }
   );
 
   res.json({
@@ -168,7 +168,7 @@ router.get("/google/callback", async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
+      { expiresIn: (process.env.JWT_EXPIRES_IN || "7d") as string & jwt.SignOptions["expiresIn"] }
     );
 
     // Redirect back to mobile app via deep link
