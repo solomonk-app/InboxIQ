@@ -2,6 +2,7 @@ services:
   - type: web
     name: inboxiq-backend
     runtime: node
+    nodeVersion: "20.11.0"
     rootDir: inboxiq-backend
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
