@@ -2,9 +2,11 @@ import axios, { AxiosInstance } from "axios";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-// Android emulator uses 10.0.2.2 to reach host machine's localhost
+// Production backend on Render; fallback to localhost for dev
+const PROD_URL = "https://inboxiq-lmfv.onrender.com/api";
 const host = Platform.OS === "android" ? "10.0.2.2" : "localhost";
-const API_URL = process.env.EXPO_PUBLIC_API_URL || `http://${host}:3000/api`;
+const DEV_URL = `http://${host}:3000/api`;
+const API_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? DEV_URL : PROD_URL);
 
 // ─── Axios Instance ──────────────────────────────────────────────
 const api: AxiosInstance = axios.create({
