@@ -1,6 +1,7 @@
 // ─── Navigation ──────────────────────────────────────────────────
 export type RootStackParamList = {
   Login: undefined;
+  Welcome: undefined;
   Main: undefined;
   Category: { category: string; label: string };
   Paywall: undefined;

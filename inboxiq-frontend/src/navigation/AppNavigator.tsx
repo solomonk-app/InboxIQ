@@ -4,12 +4,14 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
 import LoginScreen from "../screens/LoginScreen";
+import WelcomeScreen from "../screens/WelcomeScreen";
 import DashboardScreen from "../screens/DashboardScreen";
 import CategoryScreen from "../screens/CategoryScreen";
 import DigestScreen from "../screens/DigestScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import PaywallScreen from "../screens/PaywallScreen";
 import { useColors } from "../hooks/useColors";
+import { useAuthStore } from "../hooks/useAuthStore";
 import { RootStackParamList, MainTabParamList } from "../types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -67,9 +69,14 @@ export function AuthStack() {
 
 export function AppStack() {
   const colors = useColors();
+  const { isNewLogin } = useAuthStore();
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={isNewLogin ? "Welcome" : "Main"}
+    >
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="Main" component={MainTabs} />
       <Stack.Screen
         name="Category"

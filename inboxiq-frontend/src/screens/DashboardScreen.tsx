@@ -286,7 +286,7 @@ const createStyles = (colors: ThemeColors) =>
     categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 32 },
 
     usageBanner: {
-      backgroundColor: colors.bgCard, borderRadius: 14, padding: 16, marginBottom: 32,
+      backgroundColor: colors.bgCard, borderRadius: 14, padding: 16, marginBottom: 16, marginTop: -12,
     },
     usageInfo: {
       flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8,

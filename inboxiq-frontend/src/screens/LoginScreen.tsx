@@ -24,6 +24,8 @@ import { useAuthStore } from "../hooks/useAuthStore";
 import { useColors } from "../hooks/useColors";
 import { ThemeColors } from "../constants/theme";
 
+WebBrowser.maybeCompleteAuthSession();
+
 const { width } = Dimensions.get("window");
 
 const FEATURES = [
@@ -296,30 +298,25 @@ export default function LoginScreen() {
   const handleGoogleSignIn = async () => {
     try {
       const { data } = await authAPI.getGoogleAuthUrl();
+      const redirectUrl = Linking.createURL("auth");
 
-      // Listen for the deep link callback
-      const handleDeepLink = async (event: { url: string }) => {
-        const params = Linking.parse(event.url);
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.url,
+        redirectUrl
+      );
+
+      if (result.type === "success" && result.url) {
+        const params = Linking.parse(result.url);
         const token = params.queryParams?.token as string;
         const name = params.queryParams?.name as string;
+        const email = params.queryParams?.email as string;
         if (token) {
           await setAuth(
-            { id: "", email: "", name: name || "User", avatarUrl: "" },
+            { id: "", email: email || "", name: name || "User", avatarUrl: "" },
             token
           );
         }
-        WebBrowser.dismissBrowser();
-      };
-
-      const subscription = Linking.addEventListener("url", handleDeepLink);
-
-      // Check if the app was opened via a deep link while browser was open
-      await WebBrowser.openBrowserAsync(data.url, {
-        dismissButtonStyle: "cancel",
-        showInRecents: true,
-      });
-
-      subscription.remove();
+      }
     } catch (error) {
       console.error("Sign in failed:", error);
     }

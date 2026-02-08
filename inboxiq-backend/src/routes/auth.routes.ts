@@ -172,7 +172,7 @@ router.get("/google/callback", async (req: Request, res: Response) => {
     );
 
     // Redirect back to mobile app via deep link
-    const params = `token=${token}&name=${encodeURIComponent(user.name)}`;
+    const params = `token=${token}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}`;
     const deepLink = process.env.EXPO_DEV_URL
       ? `${process.env.EXPO_DEV_URL}/--/auth?${params}`
       : `inboxiq://auth?${params}`;
