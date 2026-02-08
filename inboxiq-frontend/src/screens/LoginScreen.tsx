@@ -296,12 +296,10 @@ export default function LoginScreen() {
   const handleGoogleSignIn = async () => {
     try {
       const { data } = await authAPI.getGoogleAuthUrl();
-      const result = await WebBrowser.openAuthSessionAsync(
-        data.url,
-        Linking.createURL("auth")
-      );
-      if (result.type === "success" && result.url) {
-        const params = Linking.parse(result.url);
+
+      // Listen for the deep link callback
+      const handleDeepLink = async (event: { url: string }) => {
+        const params = Linking.parse(event.url);
         const token = params.queryParams?.token as string;
         const name = params.queryParams?.name as string;
         if (token) {
@@ -310,7 +308,18 @@ export default function LoginScreen() {
             token
           );
         }
-      }
+        WebBrowser.dismissBrowser();
+      };
+
+      const subscription = Linking.addEventListener("url", handleDeepLink);
+
+      // Check if the app was opened via a deep link while browser was open
+      await WebBrowser.openBrowserAsync(data.url, {
+        dismissButtonStyle: "cancel",
+        showInRecents: true,
+      });
+
+      subscription.remove();
     } catch (error) {
       console.error("Sign in failed:", error);
     }
