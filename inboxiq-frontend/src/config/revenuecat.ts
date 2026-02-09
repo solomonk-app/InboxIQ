@@ -2,8 +2,8 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 
 const API_KEYS = {
-  ios: "appl_onCvJRahuaswsiYUBoCpHQWJRGG",
-  android: "goog_HOKgzVYNAwigIyedOqkYcfBxWwN",
+  ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY || "",
+  android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || "",
 };
 
 export const ENTITLEMENT_ID = "pro";

@@ -1,3 +1,4 @@
+import path from "path";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -22,12 +23,14 @@ app.set("trust proxy", 1); // Trust first proxy (Render's load balancer)
 app.use(helmet());
 app.use(
   cors({
-    origin: true,
+    origin: process.env.NODE_ENV === "production"
+      ? ["https://inboxiq-lmfv.onrender.com"]
+      : true,
     credentials: true,
   })
 );
 app.use(express.json({ limit: "10mb" }));
-app.use(morgan("dev"));
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 // ─── Routes ──────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
@@ -35,6 +38,9 @@ app.use("/api/emails", emailRoutes);
 app.use("/api/digests", digestRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/subscription", subscriptionRoutes);
+
+// ─── Static Files (privacy policy, support page) ────────────────
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 // ─── Health Check ────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
@@ -45,17 +51,19 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// ─── Debug Config (non-secret) ──────────────────────────────────
-app.get("/debug/config", (_req, res) => {
-  res.json({
-    NODE_ENV: process.env.NODE_ENV,
-    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
-    EXPO_DEV_URL: process.env.EXPO_DEV_URL || "(not set)",
-    deepLinkScheme: process.env.EXPO_DEV_URL
-      ? `${process.env.EXPO_DEV_URL}/--/auth?...`
-      : "inboxiq://auth?...",
+// ─── Debug Config (dev only) ────────────────────────────────────
+if (process.env.NODE_ENV !== "production") {
+  app.get("/debug/config", (_req, res) => {
+    res.json({
+      NODE_ENV: process.env.NODE_ENV,
+      GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
+      EXPO_DEV_URL: process.env.EXPO_DEV_URL || "(not set)",
+      deepLinkScheme: process.env.EXPO_DEV_URL
+        ? `${process.env.EXPO_DEV_URL}/--/auth?...`
+        : "inboxiq://auth?...",
+    });
   });
-});
+}
 
 // ─── Global Error Handler ────────────────────────────────────────
 app.use(errorHandler);

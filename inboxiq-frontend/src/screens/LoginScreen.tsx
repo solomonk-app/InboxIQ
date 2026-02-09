@@ -344,7 +344,7 @@ export default function LoginScreen() {
             token
           );
         } else {
-          Alert.alert("Debug", "No token in URL: " + resultUrl.substring(0, 200));
+          Alert.alert("Sign In Error", "Authentication failed. Please try again.");
         }
       } else {
         Alert.alert("Timeout", "Sign-in timed out. Please try again.");
