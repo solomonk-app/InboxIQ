@@ -186,28 +186,15 @@ router.get("/google/callback", async (req: Request, res: Response) => {
     }
 
     console.log("OAuth callback redirecting to:", deepLink.substring(0, 60) + "...");
-
-    // Use an HTML page with meta-refresh + JS redirect instead of 302.
-    // Android Chrome Custom Tabs often block 302 redirects to custom
-    // URI schemes (inboxiq://) and show "connection is not secure".
-    // Remove CSP header so the inline script and meta-refresh work.
-    res.removeHeader("Content-Security-Policy");
-    res.setHeader("Content-Type", "text/html");
-    res.send(`<!DOCTYPE html>
-<html>
-<head>
-  <meta http-equiv="refresh" content="0;url=${deepLink}">
-  <title>Signing in...</title>
-</head>
-<body>
-  <p style="font-family:sans-serif;text-align:center;margin-top:40px">Signing you in&hellip;</p>
-  <p style="font-family:sans-serif;text-align:center"><a href="${deepLink}">Tap here if not redirected</a></p>
-  <script>window.location.href="${deepLink}";</script>
-</body>
-</html>`);
-  } catch (err) {
+    res.redirect(deepLink);
+  } catch (err: any) {
     console.error("OAuth callback error:", err);
-    res.status(500).json({ error: "Authentication failed" });
+    // Return detailed error for debugging (remove in production later)
+    res.status(500).json({
+      error: "Authentication failed",
+      details: err?.message || String(err),
+      step: "callback",
+    });
   }
 });
 
