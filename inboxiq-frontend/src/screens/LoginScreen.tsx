@@ -18,7 +18,6 @@ import Animated, {
   Easing,
   interpolate,
 } from "react-native-reanimated";
-import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { authAPI } from "../services/api";
 import { useAuthStore } from "../hooks/useAuthStore";
@@ -296,14 +295,13 @@ export default function LoginScreen() {
 
   const handleGoogleSignIn = async () => {
     try {
-      // Step 1: Get the Google auth URL from our backend
-      const { data } = await authAPI.getGoogleAuthUrl();
-      if (!data?.url) {
-        Alert.alert("Error", "Could not connect to server. Please try again.");
-        return;
-      }
+      // Step 1: Build the local start URL that redirects to Google OAuth.
+      // Opening localhost in Chrome avoids Chrome's "account already exists"
+      // interception that happens when opening accounts.google.com directly.
+      const deepLink = btoa("exp://localhost:8081");
+      const startUrl = `http://localhost:3000/api/auth/google/start?deep_link=${encodeURIComponent(deepLink)}`;
 
-      // Step 2: Set up deep link listener
+      // Step 2: Set up deep link listener to catch the redirect back from backend
       const authPromise = new Promise<string | null>((resolve) => {
         const timeout = setTimeout(() => { sub.remove(); resolve(null); }, 120000);
         const handleUrl = (event: { url: string }) => {
@@ -314,18 +312,15 @@ export default function LoginScreen() {
         const sub = Linking.addEventListener("url", handleUrl);
       });
 
-      // Step 3: Open Google auth URL in Chrome Custom Tab.
-      // On Android, this returns immediately with { type: "opened" }.
-      WebBrowser.openBrowserAsync(data.url);
+      // Step 3: Open the local start page in Chrome.
+      // The page will redirect to Google OAuth via JavaScript.
+      // After sign-in, localhost:3000 callback redirects to exp://localhost:8081/--/auth
+      await Linking.openURL(startUrl);
 
       // Step 4: Wait for the deep link to arrive (up to 2 min).
-      // After Google sign-in, Render callback redirects to exp://localhost:8081/--/auth
       const resultUrl = await authPromise;
 
       if (resultUrl) {
-        // Dismiss the browser
-        WebBrowser.dismissBrowser();
-
         const params = Linking.parse(resultUrl);
         const token = params.queryParams?.token as string;
         const name = params.queryParams?.name as string;

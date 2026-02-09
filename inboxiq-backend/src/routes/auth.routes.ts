@@ -18,6 +18,30 @@ router.get("/google", (req: Request, res: Response) => {
   res.json({ url });
 });
 
+// ─── GET /api/auth/google/start ──────────────────────────────────
+// Serves an HTML page that redirects to Google OAuth via JavaScript.
+// Opening this localhost URL in regular Chrome avoids Chrome's
+// "account already exists" interception that happens when Chrome
+// directly opens accounts.google.com from an external intent.
+router.get("/google/start", (req: Request, res: Response) => {
+  const deepLink = req.query.deep_link as string | undefined;
+  const url = getAuthUrl(undefined, deepLink);
+  res.removeHeader("Content-Security-Policy");
+  res.setHeader("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0;url=${url}">
+<title>InboxIQ</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0f;color:#fff;text-align:center}a{color:#818cf8}</style>
+</head><body>
+<div>
+<p style="font-size:18px">Redirecting to Google&hellip;</p>
+<a href="${url}">Tap here if not redirected</a>
+</div>
+<script>window.location.href=${JSON.stringify(url)};</script>
+</body></html>`);
+});
+
 // ─── POST /api/auth/google/exchange ─────────────────────────────
 // Mobile OAuth flow: frontend sends the auth code, backend exchanges it
 async function handleExchange(code: string, redirectUri: string, res: Response) {

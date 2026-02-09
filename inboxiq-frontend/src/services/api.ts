@@ -9,12 +9,9 @@ const PROD_URL = "https://inboxiq-lmfv.onrender.com/api";
 const DEV_URL = "http://localhost:3000/api";
 const API_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? DEV_URL : PROD_URL);
 
-// In dev, use the Render HTTPS URL for the OAuth callback so Chrome Custom Tabs
-// don't need to reach HTTP localhost (which they block on Android).
-const OAUTH_CALLBACK_URL = __DEV__
-  ? "https://inboxiq-lmfv.onrender.com/api/auth/google/callback"
-  : undefined;
-// Deep link base URL for Expo Go, base64-encoded to avoid URL parsing issues
+// Deep link base URL for Expo Go, base64-encoded to avoid URL parsing issues.
+// In dev, the OAuth callback stays on localhost (reachable via adb reverse)
+// and after auth the backend redirects to this deep link.
 const DEEP_LINK_BASE = __DEV__
   ? btoa("exp://localhost:8081")
   : undefined;
@@ -52,7 +49,6 @@ api.interceptors.response.use(
 export const authAPI = {
   getGoogleAuthUrl: () => {
     const params: Record<string, string> = {};
-    if (OAUTH_CALLBACK_URL) params.callback_url = OAUTH_CALLBACK_URL;
     if (DEEP_LINK_BASE) params.deep_link = DEEP_LINK_BASE;
     return api.get<{ url: string }>("/auth/google", { params });
   },
