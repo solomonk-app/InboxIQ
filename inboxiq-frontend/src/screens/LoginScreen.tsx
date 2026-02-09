@@ -19,6 +19,7 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import { authAPI } from "../services/api";
 import { useAuthStore } from "../hooks/useAuthStore";
 import { useColors } from "../hooks/useColors";
@@ -295,13 +296,8 @@ export default function LoginScreen() {
 
   const handleGoogleSignIn = async () => {
     try {
-      // Step 1: Build the local start URL that redirects to Google OAuth.
-      // Opening localhost in Chrome avoids Chrome's "account already exists"
-      // interception that happens when opening accounts.google.com directly.
-      const deepLink = btoa("exp://localhost:8081");
-      const startUrl = `http://localhost:3000/api/auth/google/start?deep_link=${encodeURIComponent(deepLink)}`;
-
-      // Step 2: Set up deep link listener to catch the redirect back from backend
+      // Set up deep link listener to catch the redirect back from backend.
+      // Shared by both dev and production flows.
       const authPromise = new Promise<string | null>((resolve) => {
         const timeout = setTimeout(() => { sub.remove(); resolve(null); }, 120000);
         const handleUrl = (event: { url: string }) => {
@@ -312,13 +308,30 @@ export default function LoginScreen() {
         const sub = Linking.addEventListener("url", handleUrl);
       });
 
-      // Step 3: Open the local start page in Chrome.
-      // The page will redirect to Google OAuth via JavaScript.
-      // After sign-in, localhost:3000 callback redirects to exp://localhost:8081/--/auth
-      await Linking.openURL(startUrl);
+      if (__DEV__) {
+        // DEV: Open localhost start page in regular Chrome.
+        // This avoids Chrome's "account already exists" interception.
+        // Requires `adb reverse tcp:3000 tcp:3000` for Android.
+        const deepLink = btoa("exp://localhost:8081");
+        const startUrl = `http://localhost:3000/api/auth/google/start?deep_link=${encodeURIComponent(deepLink)}`;
+        await Linking.openURL(startUrl);
+      } else {
+        // PRODUCTION: Get Google OAuth URL from Render backend, then open
+        // in Chrome Custom Tabs. The backend callback redirects via inboxiq:// deep link.
+        const { data } = await authAPI.getGoogleAuthUrl();
+        await WebBrowser.openBrowserAsync(data.url, {
+          showInRecents: true,
+          dismissButtonStyle: "cancel",
+        });
+      }
 
-      // Step 4: Wait for the deep link to arrive (up to 2 min).
+      // Wait for the deep link to arrive (up to 2 min).
       const resultUrl = await authPromise;
+
+      // Dismiss Chrome Custom Tabs if still open (no-op in dev)
+      if (!__DEV__) {
+        WebBrowser.dismissBrowser();
+      }
 
       if (resultUrl) {
         const params = Linking.parse(resultUrl);

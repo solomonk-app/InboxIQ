@@ -232,14 +232,6 @@ router.get("/google/callback", async (req: Request, res: Response) => {
 
     if (deepLinkBase) {
       redirectTarget = `${deepLinkBase}/--/auth?${params}`;
-    } else if (process.env.NODE_ENV === "production") {
-      const ua = req.headers["user-agent"] || "";
-      const isAndroid = /android/i.test(ua);
-      if (isAndroid) {
-        redirectTarget = `intent://auth?${params}#Intent;scheme=inboxiq;package=com.inboxiq.app;end`;
-      } else {
-        redirectTarget = `inboxiq://auth?${params}`;
-      }
     } else if (process.env.EXPO_DEV_URL) {
       redirectTarget = `${process.env.EXPO_DEV_URL}/--/auth?${params}`;
     } else {
@@ -247,6 +239,15 @@ router.get("/google/callback", async (req: Request, res: Response) => {
     }
 
     console.log("OAuth redirect target:", redirectTarget.substring(0, 80) + "...");
+
+    // Build a fallback link for the "Tap here" button.
+    // On Android, use an intent:// URI as a manual fallback in case the
+    // custom scheme redirect doesn't trigger automatically.
+    const ua = req.headers["user-agent"] || "";
+    const isAndroid = /android/i.test(ua);
+    const fallbackHref = isAndroid && !deepLinkBase && !process.env.EXPO_DEV_URL
+      ? `intent://auth?${params}#Intent;scheme=inboxiq;package=com.inboxiq.app;end`
+      : redirectTarget;
 
     // Use an HTML page with redirect methods.
     res.removeHeader("Content-Security-Policy");
@@ -259,7 +260,7 @@ router.get("/google/callback", async (req: Request, res: Response) => {
 </head><body>
 <div>
 <p style="font-size:20px">Signing you in&hellip;</p>
-<a id="link" href="${redirectTarget}">Tap here to open InboxIQ</a>
+<a id="link" href="${fallbackHref}">Tap here to open InboxIQ</a>
 </div>
 <script>
 var target = ${JSON.stringify(redirectTarget)};
