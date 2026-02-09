@@ -14,8 +14,10 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? DEV_URL : PROD_URL
 const OAUTH_CALLBACK_URL = __DEV__
   ? "https://inboxiq-lmfv.onrender.com/api/auth/google/callback"
   : undefined;
-// Deep link base URL for Expo Go (exp://localhost:PORT via adb reverse)
-const DEEP_LINK_BASE = __DEV__ ? "exp://localhost:8081" : undefined;
+// Deep link base URL for Expo Go, base64-encoded to avoid URL parsing issues
+const DEEP_LINK_BASE = __DEV__
+  ? btoa("exp://localhost:8081")
+  : undefined;
 
 // ─── Axios Instance ──────────────────────────────────────────────
 const api: AxiosInstance = axios.create({

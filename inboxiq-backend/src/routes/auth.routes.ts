@@ -196,10 +196,17 @@ router.get("/google/callback", async (req: Request, res: Response) => {
     // 2. In production, use the custom scheme (inboxiq://)
     // 3. In development, use EXPO_DEV_URL if set (for Expo Go)
     let redirectTarget: string;
-    const deepLinkBase = typeof state === "string" && state ? state : null;
+    // State is base64-encoded to avoid URL parsing issues with exp:// scheme
+    let deepLinkBase: string | null = null;
+    if (typeof state === "string" && state) {
+      try {
+        deepLinkBase = Buffer.from(state, "base64").toString("utf-8");
+      } catch {
+        deepLinkBase = state; // Fallback: use raw state if not base64
+      }
+    }
 
     if (deepLinkBase) {
-      // Frontend specified the deep link base (e.g. exp://localhost:8081)
       redirectTarget = `${deepLinkBase}/--/auth?${params}`;
     } else if (process.env.NODE_ENV === "production") {
       const ua = req.headers["user-agent"] || "";
