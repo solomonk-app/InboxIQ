@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Alert,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -297,9 +298,17 @@ export default function LoginScreen() {
 
   const handleGoogleSignIn = async () => {
     try {
+      // Step 1: Get the Google auth URL from our backend
       const { data } = await authAPI.getGoogleAuthUrl();
+      if (!data?.url) {
+        Alert.alert("Debug", "Backend returned no auth URL: " + JSON.stringify(data));
+        return;
+      }
+
+      // Step 2: Build the redirect URL the app listens for
       const redirectUrl = Linking.createURL("auth");
 
+      // Step 3: Open browser auth session
       const result = await WebBrowser.openAuthSessionAsync(
         data.url,
         redirectUrl
@@ -315,10 +324,14 @@ export default function LoginScreen() {
             { id: "", email: email || "", name: name || "User", avatarUrl: "" },
             token
           );
+        } else {
+          Alert.alert("Debug", "No token in redirect. URL: " + result.url.substring(0, 200));
         }
+      } else {
+        Alert.alert("Debug", "Auth session result: " + JSON.stringify({ type: (result as any).type }));
       }
-    } catch (error) {
-      console.error("Sign in failed:", error);
+    } catch (error: any) {
+      Alert.alert("Sign In Error", error?.message || String(error));
     }
   };
 
