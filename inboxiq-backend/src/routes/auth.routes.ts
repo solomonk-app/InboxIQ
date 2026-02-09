@@ -7,11 +7,14 @@ import { supabase } from "../config/supabase";
 const router = Router();
 
 // ─── GET /api/auth/google ────────────────────────────────────────
-// Returns the Google OAuth consent URL for the mobile app to open
-// Accepts an optional redirect_uri query param for mobile OAuth flow
+// Returns the Google OAuth consent URL for the mobile app to open.
+// Accepts optional query params:
+//   callback_url - Override the OAuth callback URL (e.g. use Render HTTPS URL)
+//   deep_link    - Deep link base URL to redirect to after auth (passed via state)
 router.get("/google", (req: Request, res: Response) => {
-  const redirectUri = req.query.redirect_uri as string | undefined;
-  const url = getAuthUrl(redirectUri);
+  const callbackUrl = req.query.callback_url as string | undefined;
+  const deepLink = req.query.deep_link as string | undefined;
+  const url = getAuthUrl(callbackUrl, deepLink);
   res.json({ url });
 });
 
@@ -109,9 +112,12 @@ router.post("/google/exchange", async (req: Request, res: Response) => {
 });
 
 // ─── GET /api/auth/google/callback ───────────────────────────────
-// Legacy browser-redirect flow (still works for iOS/web)
+// Browser-redirect OAuth flow. Works on both localhost and production (Render).
+// The redirect_uri for token exchange is determined from the request itself,
+// so the same code works regardless of which host handles the callback.
+// The `state` query param optionally carries the deep link base URL.
 router.get("/google/callback", async (req: Request, res: Response) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
 
   if (!code || typeof code !== "string") {
     res.status(400).json({ error: "Missing authorization code" });
@@ -119,10 +125,21 @@ router.get("/google/callback", async (req: Request, res: Response) => {
   }
 
   try {
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
+    // Determine the callback URL from this request so token exchange works
+    // whether the callback is on localhost or Render (behind a reverse proxy).
+    const proto = req.get("x-forwarded-proto") || req.protocol;
+    const host = req.get("host");
+    const callbackUrl = `${proto}://${host}/api/auth/google/callback`;
 
-    const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
+    const client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      callbackUrl
+    );
+    const { tokens } = await client.getToken(code as string);
+    client.setCredentials(tokens);
+
+    const oauth2 = google.oauth2({ version: "v2", auth: client });
     const { data: profile } = await oauth2.userinfo.get();
 
     if (!profile.email) {
@@ -165,51 +182,56 @@ router.get("/google/callback", async (req: Request, res: Response) => {
       { onConflict: "user_id" }
     );
 
-    const token = jwt.sign(
+    const jwtToken = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_SECRET!,
       { expiresIn: (process.env.JWT_EXPIRES_IN || "7d") as string & jwt.SignOptions["expiresIn"] }
     );
 
     // Redirect back to mobile app via deep link
-    const params = `token=${token}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}`;
+    const params = `token=${jwtToken}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}`;
 
-    // In production, always use the custom scheme (inboxiq://)
-    // In development, use EXPO_DEV_URL if set (for Expo Go)
-    let deepLink: string;
-    if (process.env.NODE_ENV === "production") {
-      deepLink = `inboxiq://auth?${params}`;
+    // Determine deep link target:
+    // 1. If `state` was passed (from frontend), use it as the deep link base
+    // 2. In production, use the custom scheme (inboxiq://)
+    // 3. In development, use EXPO_DEV_URL if set (for Expo Go)
+    let redirectTarget: string;
+    const deepLinkBase = typeof state === "string" && state ? state : null;
+
+    if (deepLinkBase) {
+      // Frontend specified the deep link base (e.g. exp://localhost:8081)
+      redirectTarget = `${deepLinkBase}/--/auth?${params}`;
+    } else if (process.env.NODE_ENV === "production") {
+      const ua = req.headers["user-agent"] || "";
+      const isAndroid = /android/i.test(ua);
+      if (isAndroid) {
+        redirectTarget = `intent://auth?${params}#Intent;scheme=inboxiq;package=com.inboxiq.app;end`;
+      } else {
+        redirectTarget = `inboxiq://auth?${params}`;
+      }
     } else if (process.env.EXPO_DEV_URL) {
-      deepLink = `${process.env.EXPO_DEV_URL}/--/auth?${params}`;
+      redirectTarget = `${process.env.EXPO_DEV_URL}/--/auth?${params}`;
     } else {
-      deepLink = `inboxiq://auth?${params}`;
+      redirectTarget = `inboxiq://auth?${params}`;
     }
 
-    console.log("OAuth callback redirecting to:", deepLink.substring(0, 60) + "...");
+    console.log("OAuth redirect target:", redirectTarget.substring(0, 80) + "...");
 
-    // Build Android intent URI — Chrome on Android natively handles these
-    // to open apps, unlike custom scheme redirects which often fail.
-    const intentUri = `intent://auth?${params}#Intent;scheme=inboxiq;package=com.inboxiq.app;end`;
-
-    // Detect platform from User-Agent
-    const ua = req.headers["user-agent"] || "";
-    const isAndroid = /android/i.test(ua);
-
-    // Use an HTML page with platform-specific redirect methods.
+    // Use an HTML page with redirect methods.
     res.removeHeader("Content-Security-Policy");
     res.setHeader("Content-Type", "text/html");
     res.send(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="0;url=${isAndroid ? intentUri : deepLink}">
+<meta http-equiv="refresh" content="0;url=${redirectTarget}">
 <title>InboxIQ</title>
 <style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0f;color:#fff;text-align:center}a{color:#818cf8;font-size:18px;padding:16px 32px;border:2px solid #818cf8;border-radius:12px;text-decoration:none;display:inline-block;margin-top:20px}</style>
 </head><body>
 <div>
 <p style="font-size:20px">Signing you in&hellip;</p>
-<a id="link" href="${isAndroid ? intentUri : deepLink}">Tap here to open InboxIQ</a>
+<a id="link" href="${redirectTarget}">Tap here to open InboxIQ</a>
 </div>
 <script>
-var target = ${JSON.stringify(isAndroid ? intentUri : deepLink)};
+var target = ${JSON.stringify(redirectTarget)};
 window.location.href = target;
 </script>
 </body></html>`);

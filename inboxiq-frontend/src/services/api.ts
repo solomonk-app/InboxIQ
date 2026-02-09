@@ -4,9 +4,18 @@ import { Platform } from "react-native";
 
 // Production backend on Render; fallback to localhost for dev
 const PROD_URL = "https://inboxiq-lmfv.onrender.com/api";
-const host = Platform.OS === "android" ? "10.0.2.2" : "localhost";
-const DEV_URL = `http://${host}:3000/api`;
+// Use localhost for all platforms — on Android physical devices and emulators,
+// run "adb reverse tcp:3000 tcp:3000" so localhost reaches the dev machine.
+const DEV_URL = "http://localhost:3000/api";
 const API_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? DEV_URL : PROD_URL);
+
+// In dev, use the Render HTTPS URL for the OAuth callback so Chrome Custom Tabs
+// don't need to reach HTTP localhost (which they block on Android).
+const OAUTH_CALLBACK_URL = __DEV__
+  ? "https://inboxiq-lmfv.onrender.com/api/auth/google/callback"
+  : undefined;
+// Deep link base URL for Expo Go (exp://localhost:PORT via adb reverse)
+const DEEP_LINK_BASE = __DEV__ ? "exp://localhost:8081" : undefined;
 
 // ─── Axios Instance ──────────────────────────────────────────────
 const api: AxiosInstance = axios.create({
@@ -39,7 +48,12 @@ api.interceptors.response.use(
 
 // ─── Auth Endpoints ──────────────────────────────────────────────
 export const authAPI = {
-  getGoogleAuthUrl: () => api.get<{ url: string }>("/auth/google"),
+  getGoogleAuthUrl: () => {
+    const params: Record<string, string> = {};
+    if (OAUTH_CALLBACK_URL) params.callback_url = OAUTH_CALLBACK_URL;
+    if (DEEP_LINK_BASE) params.deep_link = DEEP_LINK_BASE;
+    return api.get<{ url: string }>("/auth/google", { params });
+  },
 
   exchangeCode: (code: string, redirectUri: string) =>
     api.post("/auth/google/exchange", { code, redirect_uri: redirectUri }),

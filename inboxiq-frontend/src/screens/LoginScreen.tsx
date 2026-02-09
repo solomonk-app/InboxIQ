@@ -298,16 +298,9 @@ export default function LoginScreen() {
 
   const handleGoogleSignIn = async () => {
     try {
-      // Step 1: Get the Google auth URL from our backend
-      const { data } = await authAPI.getGoogleAuthUrl();
-      if (!data?.url) {
-        Alert.alert("Error", "Could not connect to server. Please try again.");
-        return;
-      }
-
-      // Step 2: Listen for the deep link from the backend callback redirect.
-      // This fires when the backend redirects to inboxiq://auth or intent://
-      // and Android opens the app.
+      // Step 1: Set up deep link listener before opening the browser.
+      // This fires when the backend redirects to exp:// or inboxiq://
+      // and the system opens the app.
       const authPromise = new Promise<string | null>((resolve) => {
         const timeout = setTimeout(() => {
           sub.remove();
@@ -332,13 +325,20 @@ export default function LoginScreen() {
         });
       });
 
-      // Step 3: Open the Google consent URL in the browser
+      // Step 2: Get the Google auth URL and open in Chrome Custom Tab.
+      // Custom Tabs don't intercept Google sign-in like regular Chrome does.
+      // Requires chrome://flags/#allow-insecure-localhost enabled for HTTP callback.
+      const { data } = await authAPI.getGoogleAuthUrl();
+      if (!data?.url) {
+        Alert.alert("Error", "Could not connect to server. Please try again.");
+        return;
+      }
       await WebBrowser.openBrowserAsync(data.url, {
         showInRecents: true,
         createTask: false,
       });
 
-      // Step 4: Wait for the deep link to arrive
+      // Step 3: Wait for the deep link to arrive
       const resultUrl = await authPromise;
 
       if (resultUrl) {

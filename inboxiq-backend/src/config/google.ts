@@ -18,8 +18,8 @@ export const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/userinfo.profile",
 ];
 
-// Generate the Google OAuth consent URL with a custom redirect URI
-export const getAuthUrl = (redirectUri?: string): string => {
+// Generate the Google OAuth consent URL
+export const getAuthUrl = (redirectUri?: string, state?: string): string => {
   const client = redirectUri
     ? new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
@@ -31,6 +31,7 @@ export const getAuthUrl = (redirectUri?: string): string => {
     access_type: "offline",
     scope: GMAIL_SCOPES,
     prompt: "consent",
+    state,
   });
 };
 
