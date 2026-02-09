@@ -25,8 +25,6 @@ import { useAuthStore } from "../hooks/useAuthStore";
 import { useColors } from "../hooks/useColors";
 import { ThemeColors } from "../constants/theme";
 
-WebBrowser.maybeCompleteAuthSession();
-
 const { width } = Dimensions.get("window");
 
 const FEATURES = [
@@ -298,50 +296,36 @@ export default function LoginScreen() {
 
   const handleGoogleSignIn = async () => {
     try {
-      // Step 1: Set up deep link listener before opening the browser.
-      // This fires when the backend redirects to exp:// or inboxiq://
-      // and the system opens the app.
-      const authPromise = new Promise<string | null>((resolve) => {
-        const timeout = setTimeout(() => {
-          sub.remove();
-          resolve(null);
-        }, 120000); // 2 min timeout
-
-        const handleUrl = (event: { url: string }) => {
-          clearTimeout(timeout);
-          sub.remove();
-          resolve(event.url);
-        };
-
-        const sub = Linking.addEventListener("url", handleUrl);
-
-        // Also check if the URL was already received (race condition)
-        Linking.getInitialURL().then((url) => {
-          if (url && url.includes("auth") && url.includes("token=")) {
-            clearTimeout(timeout);
-            sub.remove();
-            resolve(url);
-          }
-        });
-      });
-
-      // Step 2: Get the Google auth URL and open in Chrome Custom Tab.
-      // Custom Tabs don't intercept Google sign-in like regular Chrome does.
-      // Requires chrome://flags/#allow-insecure-localhost enabled for HTTP callback.
+      // Step 1: Get the Google auth URL from our backend
       const { data } = await authAPI.getGoogleAuthUrl();
       if (!data?.url) {
         Alert.alert("Error", "Could not connect to server. Please try again.");
         return;
       }
-      await WebBrowser.openBrowserAsync(data.url, {
-        showInRecents: true,
-        createTask: false,
+
+      // Step 2: Set up deep link listener
+      const authPromise = new Promise<string | null>((resolve) => {
+        const timeout = setTimeout(() => { sub.remove(); resolve(null); }, 120000);
+        const handleUrl = (event: { url: string }) => {
+          clearTimeout(timeout);
+          sub.remove();
+          resolve(event.url);
+        };
+        const sub = Linking.addEventListener("url", handleUrl);
       });
 
-      // Step 3: Wait for the deep link to arrive
+      // Step 3: Open Google auth URL in Chrome Custom Tab.
+      // On Android, this returns immediately with { type: "opened" }.
+      WebBrowser.openBrowserAsync(data.url);
+
+      // Step 4: Wait for the deep link to arrive (up to 2 min).
+      // After Google sign-in, Render callback redirects to exp://localhost:8081/--/auth
       const resultUrl = await authPromise;
 
       if (resultUrl) {
+        // Dismiss the browser
+        WebBrowser.dismissBrowser();
+
         const params = Linking.parse(resultUrl);
         const token = params.queryParams?.token as string;
         const name = params.queryParams?.name as string;
@@ -354,9 +338,14 @@ export default function LoginScreen() {
         } else {
           Alert.alert("Debug", "No token in URL: " + resultUrl.substring(0, 200));
         }
+      } else {
+        Alert.alert("Timeout", "Sign-in timed out. Please try again.");
       }
     } catch (error: any) {
-      Alert.alert("Sign In Error", error?.message || String(error));
+      Alert.alert(
+        "Sign In Error",
+        `${error?.message || String(error)}\n\nCode: ${error?.code || "none"}\nName: ${error?.name || "unknown"}`
+      );
     }
   };
 

@@ -18,6 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ─── Middleware ───────────────────────────────────────────────────
+app.set("trust proxy", 1); // Trust first proxy (Render's load balancer)
 app.use(helmet());
 app.use(
   cors({
