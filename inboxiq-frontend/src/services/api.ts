@@ -41,6 +41,9 @@ api.interceptors.response.use(
 export const authAPI = {
   getGoogleAuthUrl: () => api.get<{ url: string }>("/auth/google"),
 
+  exchangeCode: (code: string, redirectUri: string) =>
+    api.post("/auth/google/exchange", { code, redirect_uri: redirectUri }),
+
   registerPushToken: (userId: string, pushToken: string) =>
     api.post("/auth/push-token", { userId, pushToken }),
 };

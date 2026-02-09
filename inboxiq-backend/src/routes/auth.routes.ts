@@ -187,23 +187,31 @@ router.get("/google/callback", async (req: Request, res: Response) => {
 
     console.log("OAuth callback redirecting to:", deepLink.substring(0, 60) + "...");
 
-    // Return an HTML page that redirects to the deep link.
-    // A bare 302 to a custom scheme (inboxiq://) often fails on Android
-    // Chrome Custom Tabs — showing a blank screen or security warning.
-    // The HTML page gives a visible loading state + multiple redirect methods.
+    // Build Android intent URI — Chrome on Android natively handles these
+    // to open apps, unlike custom scheme redirects which often fail.
+    const intentUri = `intent://auth?${params}#Intent;scheme=inboxiq;package=com.inboxiq.app;end`;
+
+    // Detect platform from User-Agent
+    const ua = req.headers["user-agent"] || "";
+    const isAndroid = /android/i.test(ua);
+
+    // Use an HTML page with platform-specific redirect methods.
     res.removeHeader("Content-Security-Policy");
     res.setHeader("Content-Type", "text/html");
     res.send(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="1;url=${deepLink}">
+<meta http-equiv="refresh" content="0;url=${isAndroid ? intentUri : deepLink}">
 <title>InboxIQ</title>
 <style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0f;color:#fff;text-align:center}a{color:#818cf8;font-size:18px;padding:16px 32px;border:2px solid #818cf8;border-radius:12px;text-decoration:none;display:inline-block;margin-top:20px}</style>
 </head><body>
 <div>
 <p style="font-size:20px">Signing you in&hellip;</p>
-<a href="${deepLink}">Tap here to open InboxIQ</a>
+<a id="link" href="${isAndroid ? intentUri : deepLink}">Tap here to open InboxIQ</a>
 </div>
-<script>setTimeout(function(){window.location.href="${deepLink}"},500);</script>
+<script>
+var target = ${JSON.stringify(isAndroid ? intentUri : deepLink)};
+window.location.href = target;
+</script>
 </body></html>`);
   } catch (err: any) {
     console.error("OAuth callback error:", err);

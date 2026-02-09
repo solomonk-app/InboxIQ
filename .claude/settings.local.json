@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcrun simctl io:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(npm run dev:*)",
+      "Bash(node -e:*)",
+      "Bash(export ANDROID_HOME:*)",
+      "Bash(export PATH:*)",
+      "Bash(adb reverse:*)",
+      "Bash(adb shell am start:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(# Check if expo-build-properties supports setting AGP version grep -r \"\"agpVersion\\\\|gradleVersion\\\\|androidGradlePluginVersion\"\" \"\"/Users/solomon/Documents/Gmail Summarizer/InboxIQ/inboxiq-frontend/node_modules/expo-build-properties/build/\"\")",
+      "Bash(node scripts/patch-purchases.js:*)",
+      "Bash(eas build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx eas-cli:*)"
+    ]
+  }
+}

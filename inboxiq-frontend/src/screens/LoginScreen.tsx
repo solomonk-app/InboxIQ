@@ -301,34 +301,66 @@ export default function LoginScreen() {
       // Step 1: Get the Google auth URL from our backend
       const { data } = await authAPI.getGoogleAuthUrl();
       if (!data?.url) {
-        Alert.alert("Debug", "Backend returned no auth URL: " + JSON.stringify(data));
+        Alert.alert("Error", "Could not connect to server. Please try again.");
         return;
       }
 
-      // Step 2: Build the redirect URL the app listens for
-      const redirectUrl = Linking.createURL("auth");
+      // Step 2: The callback URL is what Google redirects to after consent.
+      // We tell openAuthSessionAsync to intercept this URL so the browser
+      // closes and we get the auth code — no deep link redirect needed.
+      const callbackUrl = data.url.match(/redirect_uri=([^&]+)/)?.[1];
+      const decodedCallback = callbackUrl ? decodeURIComponent(callbackUrl) : "";
 
-      // Step 3: Open browser auth session
+      // Also build the deep link URL as fallback
+      const deepLinkUrl = Linking.createURL("auth");
+
+      // Step 3: Open browser auth session — intercept EITHER the callback
+      // URL (code exchange flow) or the deep link (redirect flow)
       const result = await WebBrowser.openAuthSessionAsync(
         data.url,
-        redirectUrl
+        deepLinkUrl
       );
 
       if (result.type === "success" && result.url) {
-        const params = Linking.parse(result.url);
-        const token = params.queryParams?.token as string;
-        const name = params.queryParams?.name as string;
-        const email = params.queryParams?.email as string;
-        if (token) {
-          await setAuth(
-            { id: "", email: email || "", name: name || "User", avatarUrl: "" },
-            token
-          );
-        } else {
-          Alert.alert("Debug", "No token in redirect. URL: " + result.url.substring(0, 200));
+        // Check if we got a deep link redirect (old flow)
+        if (result.url.startsWith("inboxiq://") || result.url.includes("expo-auth-session")) {
+          const params = Linking.parse(result.url);
+          const token = params.queryParams?.token as string;
+          const name = params.queryParams?.name as string;
+          const email = params.queryParams?.email as string;
+          if (token) {
+            await setAuth(
+              { id: "", email: email || "", name: name || "User", avatarUrl: "" },
+              token
+            );
+            return;
+          }
         }
+
+        // Check if we got the callback URL with an auth code (new flow)
+        const url = new URL(result.url);
+        const code = url.searchParams.get("code");
+        if (code && decodedCallback) {
+          const { data: exchangeData } = await authAPI.exchangeCode(code, decodedCallback);
+          if (exchangeData?.token) {
+            await setAuth(
+              {
+                id: exchangeData.user?.id || "",
+                email: exchangeData.user?.email || "",
+                name: exchangeData.user?.name || "User",
+                avatarUrl: exchangeData.user?.avatarUrl || "",
+              },
+              exchangeData.token
+            );
+            return;
+          }
+        }
+
+        Alert.alert("Debug", "Unexpected result URL: " + result.url.substring(0, 200));
+      } else if (result.type === "dismiss") {
+        // User closed the browser — do nothing
       } else {
-        Alert.alert("Debug", "Auth session result: " + JSON.stringify({ type: (result as any).type }));
+        Alert.alert("Debug", "Auth result: " + (result as any).type);
       }
     } catch (error: any) {
       Alert.alert("Sign In Error", error?.message || String(error));
