@@ -22,7 +22,7 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: GOOGLE_REDIRECT_URI
-        sync: false
+        value: "https://inboxiq-lmfv.onrender.com/api/auth/google/callback"
       - key: GEMINI_API_KEY
         sync: false
       - key: JWT_SECRET
@@ -37,5 +37,5 @@ services:
         sync: false
       - key: SMTP_APP_PASSWORD
         sync: false
-      - key: EXPO_DEV_URL
-        sync: false
+      # EXPO_DEV_URL intentionally omitted in production
+      # so deep links use inboxiq:// custom scheme

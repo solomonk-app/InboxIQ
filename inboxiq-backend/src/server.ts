@@ -44,6 +44,18 @@ app.get("/health", (_req, res) => {
   });
 });
 
+// ─── Debug Config (non-secret) ──────────────────────────────────
+app.get("/debug/config", (_req, res) => {
+  res.json({
+    NODE_ENV: process.env.NODE_ENV,
+    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
+    EXPO_DEV_URL: process.env.EXPO_DEV_URL || "(not set)",
+    deepLinkScheme: process.env.EXPO_DEV_URL
+      ? `${process.env.EXPO_DEV_URL}/--/auth?...`
+      : "inboxiq://auth?...",
+  });
+});
+
 // ─── Global Error Handler ────────────────────────────────────────
 app.use(errorHandler);
 

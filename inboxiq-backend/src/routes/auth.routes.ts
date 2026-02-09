@@ -173,10 +173,19 @@ router.get("/google/callback", async (req: Request, res: Response) => {
 
     // Redirect back to mobile app via deep link
     const params = `token=${token}&name=${encodeURIComponent(user.name)}&email=${encodeURIComponent(user.email)}`;
-    const deepLink = process.env.EXPO_DEV_URL
-      ? `${process.env.EXPO_DEV_URL}/--/auth?${params}`
-      : `inboxiq://auth?${params}`;
 
+    // In production, always use the custom scheme (inboxiq://)
+    // In development, use EXPO_DEV_URL if set (for Expo Go)
+    let deepLink: string;
+    if (process.env.NODE_ENV === "production") {
+      deepLink = `inboxiq://auth?${params}`;
+    } else if (process.env.EXPO_DEV_URL) {
+      deepLink = `${process.env.EXPO_DEV_URL}/--/auth?${params}`;
+    } else {
+      deepLink = `inboxiq://auth?${params}`;
+    }
+
+    console.log("OAuth callback redirecting to:", deepLink.substring(0, 60) + "...");
     res.redirect(deepLink);
   } catch (err) {
     console.error("OAuth callback error:", err);
