@@ -186,15 +186,39 @@ router.get("/google/callback", async (req: Request, res: Response) => {
     }
 
     console.log("OAuth callback redirecting to:", deepLink.substring(0, 60) + "...");
-    res.redirect(deepLink);
+
+    // Return an HTML page that redirects to the deep link.
+    // A bare 302 to a custom scheme (inboxiq://) often fails on Android
+    // Chrome Custom Tabs — showing a blank screen or security warning.
+    // The HTML page gives a visible loading state + multiple redirect methods.
+    res.removeHeader("Content-Security-Policy");
+    res.setHeader("Content-Type", "text/html");
+    res.send(`<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="1;url=${deepLink}">
+<title>InboxIQ</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0f;color:#fff;text-align:center}a{color:#818cf8;font-size:18px;padding:16px 32px;border:2px solid #818cf8;border-radius:12px;text-decoration:none;display:inline-block;margin-top:20px}</style>
+</head><body>
+<div>
+<p style="font-size:20px">Signing you in&hellip;</p>
+<a href="${deepLink}">Tap here to open InboxIQ</a>
+</div>
+<script>setTimeout(function(){window.location.href="${deepLink}"},500);</script>
+</body></html>`);
   } catch (err: any) {
     console.error("OAuth callback error:", err);
-    // Return detailed error for debugging (remove in production later)
-    res.status(500).json({
-      error: "Authentication failed",
-      details: err?.message || String(err),
-      step: "callback",
-    });
+    res.removeHeader("Content-Security-Policy");
+    res.setHeader("Content-Type", "text/html");
+    res.send(`<!DOCTYPE html><html><head>
+<meta charset="utf-8"><title>InboxIQ - Error</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0f;color:#fff;text-align:center}.err{color:#f87171;margin-top:12px}</style>
+</head><body>
+<div>
+<p style="font-size:20px">Sign-in failed</p>
+<p class="err">${(err?.message || String(err)).replace(/"/g, '&quot;')}</p>
+<p style="color:#888">Please go back and try again.</p>
+</div>
+</body></html>`);
   }
 });
 
