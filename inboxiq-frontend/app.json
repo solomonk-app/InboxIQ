@@ -36,7 +36,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0a0f"
       },
-      "package": "com.inboxiq.app",
+      "package": "com.solomonkapp.inboxiq",
       "intentFilters": [
         {
           "action": "VIEW",

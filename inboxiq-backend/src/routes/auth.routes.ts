@@ -246,7 +246,7 @@ router.get("/google/callback", async (req: Request, res: Response) => {
     const ua = req.headers["user-agent"] || "";
     const isAndroid = /android/i.test(ua);
     const fallbackHref = isAndroid && !deepLinkBase && !process.env.EXPO_DEV_URL
-      ? `intent://auth?${params}#Intent;scheme=inboxiq;package=com.inboxiq.app;end`
+      ? `intent://auth?${params}#Intent;scheme=inboxiq;package=com.solomonkapp.inboxiq;end`
       : redirectTarget;
 
     // Use an HTML page with redirect methods.
