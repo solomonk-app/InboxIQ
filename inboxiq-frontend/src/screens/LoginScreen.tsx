@@ -305,62 +305,55 @@ export default function LoginScreen() {
         return;
       }
 
-      // Step 2: The callback URL is what Google redirects to after consent.
-      // We tell openAuthSessionAsync to intercept this URL so the browser
-      // closes and we get the auth code — no deep link redirect needed.
-      const callbackUrl = data.url.match(/redirect_uri=([^&]+)/)?.[1];
-      const decodedCallback = callbackUrl ? decodeURIComponent(callbackUrl) : "";
+      // Step 2: Listen for the deep link from the backend callback redirect.
+      // This fires when the backend redirects to inboxiq://auth or intent://
+      // and Android opens the app.
+      const authPromise = new Promise<string | null>((resolve) => {
+        const timeout = setTimeout(() => {
+          sub.remove();
+          resolve(null);
+        }, 120000); // 2 min timeout
 
-      // Also build the deep link URL as fallback
-      const deepLinkUrl = Linking.createURL("auth");
+        const handleUrl = (event: { url: string }) => {
+          clearTimeout(timeout);
+          sub.remove();
+          resolve(event.url);
+        };
 
-      // Step 3: Open browser auth session — intercept EITHER the callback
-      // URL (code exchange flow) or the deep link (redirect flow)
-      const result = await WebBrowser.openAuthSessionAsync(
-        data.url,
-        deepLinkUrl
-      );
+        const sub = Linking.addEventListener("url", handleUrl);
 
-      if (result.type === "success" && result.url) {
-        // Check if we got a deep link redirect (old flow)
-        if (result.url.startsWith("inboxiq://") || result.url.includes("expo-auth-session")) {
-          const params = Linking.parse(result.url);
-          const token = params.queryParams?.token as string;
-          const name = params.queryParams?.name as string;
-          const email = params.queryParams?.email as string;
-          if (token) {
-            await setAuth(
-              { id: "", email: email || "", name: name || "User", avatarUrl: "" },
-              token
-            );
-            return;
+        // Also check if the URL was already received (race condition)
+        Linking.getInitialURL().then((url) => {
+          if (url && url.includes("auth") && url.includes("token=")) {
+            clearTimeout(timeout);
+            sub.remove();
+            resolve(url);
           }
-        }
+        });
+      });
 
-        // Check if we got the callback URL with an auth code (new flow)
-        const url = new URL(result.url);
-        const code = url.searchParams.get("code");
-        if (code && decodedCallback) {
-          const { data: exchangeData } = await authAPI.exchangeCode(code, decodedCallback);
-          if (exchangeData?.token) {
-            await setAuth(
-              {
-                id: exchangeData.user?.id || "",
-                email: exchangeData.user?.email || "",
-                name: exchangeData.user?.name || "User",
-                avatarUrl: exchangeData.user?.avatarUrl || "",
-              },
-              exchangeData.token
-            );
-            return;
-          }
-        }
+      // Step 3: Open the Google consent URL in the browser
+      await WebBrowser.openBrowserAsync(data.url, {
+        showInRecents: true,
+        createTask: false,
+      });
 
-        Alert.alert("Debug", "Unexpected result URL: " + result.url.substring(0, 200));
-      } else if (result.type === "dismiss") {
-        // User closed the browser — do nothing
-      } else {
-        Alert.alert("Debug", "Auth result: " + (result as any).type);
+      // Step 4: Wait for the deep link to arrive
+      const resultUrl = await authPromise;
+
+      if (resultUrl) {
+        const params = Linking.parse(resultUrl);
+        const token = params.queryParams?.token as string;
+        const name = params.queryParams?.name as string;
+        const email = params.queryParams?.email as string;
+        if (token) {
+          await setAuth(
+            { id: "", email: email || "", name: name || "User", avatarUrl: "" },
+            token
+          );
+        } else {
+          Alert.alert("Debug", "No token in URL: " + resultUrl.substring(0, 200));
+        }
       }
     } catch (error: any) {
       Alert.alert("Sign In Error", error?.message || String(error));
