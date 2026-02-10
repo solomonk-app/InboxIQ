@@ -8,5 +8,6 @@ dist/
 *.mobileprovision
 *.orig.*
 web-build/
+ios/
 .env
 .DS_Store
