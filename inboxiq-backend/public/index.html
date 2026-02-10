@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InboxIQ - AI-Powered Email Digests</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #e0e0e0; line-height: 1.7; }
+
+  /* Hero */
+  .hero { text-align: center; padding: 80px 20px 60px; }
+  .logo { font-size: 48px; margin-bottom: 12px; }
+  .hero h1 { font-size: 42px; font-weight: 800; color: #fff; margin-bottom: 12px; }
+  .hero h1 span { color: #818cf8; }
+  .hero p { font-size: 18px; color: #9ca3af; max-width: 540px; margin: 0 auto 36px; }
+  .badges { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 8px; background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 12px; padding: 12px 24px; color: #e0e0e0; font-size: 15px; font-weight: 600; text-decoration: none; transition: background 0.2s; }
+  .badge:hover { background: #252545; text-decoration: none; }
+  .badge-icon { font-size: 20px; }
+
+  /* Features */
+  .features { max-width: 900px; margin: 0 auto; padding: 40px 20px 60px; }
+  .features h2 { text-align: center; font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 40px; }
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+  .feature-card { background: #12121a; border: 1px solid #1a1a2e; border-radius: 16px; padding: 28px; }
+  .feature-icon { font-size: 32px; margin-bottom: 14px; }
+  .feature-card h3 { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .feature-card p { font-size: 14px; color: #9ca3af; margin-bottom: 0; }
+
+  /* How it works */
+  .how { max-width: 720px; margin: 0 auto; padding: 40px 20px 60px; }
+  .how h2 { text-align: center; font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 40px; }
+  .steps { display: flex; flex-direction: column; gap: 24px; }
+  .step { display: flex; align-items: flex-start; gap: 20px; }
+  .step-number { flex-shrink: 0; width: 40px; height: 40px; border-radius: 20px; background: #818cf8; color: #fff; font-size: 18px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .step-text h3 { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .step-text p { font-size: 14px; color: #9ca3af; margin-bottom: 0; }
+
+  /* Pricing */
+  .pricing { max-width: 720px; margin: 0 auto; padding: 40px 20px 60px; }
+  .pricing h2 { text-align: center; font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 40px; }
+  .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 600px) { .pricing-grid { grid-template-columns: 1fr; } }
+  .plan { background: #12121a; border: 1px solid #1a1a2e; border-radius: 16px; padding: 28px; }
+  .plan.pro { border-color: #818cf8; }
+  .plan-name { font-size: 13px; font-weight: 700; color: #9ca3af; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 8px; }
+  .plan-price { font-size: 36px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+  .plan-price span { font-size: 15px; font-weight: 500; color: #6b7280; }
+  .plan-desc { font-size: 14px; color: #9ca3af; margin-bottom: 20px; }
+  .plan ul { list-style: none; padding: 0; }
+  .plan li { font-size: 14px; color: #b0b0b0; padding: 6px 0; }
+  .plan li::before { content: "✓ "; color: #818cf8; font-weight: 700; }
+
+  /* Footer */
+  .footer { text-align: center; padding: 40px 20px; border-top: 1px solid #1a1a2e; }
+  .footer-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .footer-links a { color: #818cf8; text-decoration: none; font-size: 14px; }
+  .footer-links a:hover { text-decoration: underline; }
+  .footer p { font-size: 13px; color: #4b5563; }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="logo">📬</div>
+  <h1>Inbox<span>IQ</span></h1>
+  <p>AI-powered email digests that cut through the noise. Get categorized summaries, action items, and highlights from your Gmail inbox in seconds.</p>
+  <div class="badges">
+    <a class="badge" href="#">
+      <span class="badge-icon">🍎</span> App Store
+    </a>
+    <a class="badge" href="#">
+      <span class="badge-icon">🤖</span> Google Play
+    </a>
+  </div>
+</div>
+
+<!-- Features -->
+<div class="features">
+  <h2>Why InboxIQ?</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <h3>Instant AI Digests</h3>
+      <p>Generate a complete summary of your inbox with one tap. Powered by Google Gemini AI.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🗂️</div>
+      <h3>Smart Categories</h3>
+      <p>Emails automatically sorted into work, personal, financial, newsletters, and more.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎯</div>
+      <h3>Action Items</h3>
+      <p>Never miss what matters. AI identifies emails that need your attention.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📅</div>
+      <h3>Scheduled Digests</h3>
+      <p>Set up automatic daily, weekly, or monthly summaries delivered on your schedule.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📧</div>
+      <h3>Email Summaries</h3>
+      <p>Get AI-composed digest emails sent directly to your inbox.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔒</div>
+      <h3>Privacy First</h3>
+      <p>Read-only Gmail access. Raw emails are never stored. Your data stays yours.</p>
+    </div>
+  </div>
+</div>
+
+<!-- How it works -->
+<div class="how">
+  <h2>How It Works</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-number">1</div>
+      <div class="step-text">
+        <h3>Connect your Gmail</h3>
+        <p>Sign in securely with your Google account. We only request read-only access.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">2</div>
+      <div class="step-text">
+        <h3>Generate a digest</h3>
+        <p>Tap the refresh button and AI analyzes your recent emails in seconds.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-number">3</div>
+      <div class="step-text">
+        <h3>Stay on top of your inbox</h3>
+        <p>Browse categorized summaries, review action items, and never miss what matters.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pricing -->
+<div class="pricing">
+  <h2>Simple Pricing</h2>
+  <div class="pricing-grid">
+    <div class="plan">
+      <div class="plan-name">Free Trial</div>
+      <div class="plan-price">$0 <span>/ 5 days</span></div>
+      <p class="plan-desc">Try InboxIQ risk-free</p>
+      <ul>
+        <li>3 digests per day</li>
+        <li>All email categories</li>
+        <li>Action item detection</li>
+        <li>Highlights & summaries</li>
+      </ul>
+    </div>
+    <div class="plan pro">
+      <div class="plan-name">Pro</div>
+      <div class="plan-price">$4.99 <span>/ month</span></div>
+      <p class="plan-desc">Unlock everything</p>
+      <ul>
+        <li>Unlimited digests</li>
+        <li>Email digest summaries</li>
+        <li>Scheduled auto-digests</li>
+        <li>Priority support</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <div class="footer-links">
+    <a href="/privacy.html">Privacy Policy</a>
+    <a href="/terms.html">Terms of Service</a>
+    <a href="/support.html">Support</a>
+    <a href="mailto:nomo2606@gmail.com">Contact</a>
+  </div>
+  <p>&copy; 2026 InboxIQ. All rights reserved.</p>
+</div>
+
+</body>
+</html>
