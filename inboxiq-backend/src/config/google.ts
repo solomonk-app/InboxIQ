@@ -35,8 +35,9 @@ export const getAuthUrl = (redirectUri?: string, state?: string): string => {
   });
 };
 
-// Create an authenticated Gmail client for a specific user's tokens
-export const createGmailClient = (accessToken: string, refreshToken: string) => {
+// Create an authenticated Gmail client for a specific user's tokens.
+// Handles token refresh automatically and saves new tokens to the database.
+export const createGmailClient = (accessToken: string, refreshToken: string, userId?: string) => {
   const auth = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -46,6 +47,23 @@ export const createGmailClient = (accessToken: string, refreshToken: string) => 
     access_token: accessToken,
     refresh_token: refreshToken,
   });
+
+  // When the access token is refreshed, save the new token to the database
+  if (userId) {
+    auth.on("tokens", async (tokens) => {
+      console.log("OAuth tokens refreshed for user", userId);
+      const { supabase } = await import("./supabase");
+      await supabase
+        .from("users")
+        .update({
+          google_access_token: tokens.access_token,
+          ...(tokens.refresh_token && { google_refresh_token: tokens.refresh_token }),
+          ...(tokens.expiry_date && { token_expiry: new Date(tokens.expiry_date).toISOString() }),
+        })
+        .eq("id", userId);
+    });
+  }
+
   return google.gmail({ version: "v1", auth });
 };
 

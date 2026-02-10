@@ -20,16 +20,20 @@ export const fetchEmails = async (
     throw new Error("User not found or OAuth tokens missing");
   }
 
-  const gmail = createGmailClient(user.google_access_token, user.google_refresh_token);
+  const gmail = createGmailClient(user.google_access_token, user.google_refresh_token, userId);
 
   // List message IDs matching the query
+  const q = query || "newer_than:1d";
+  console.log(`Gmail query for user ${userId}: "${q}", maxResults: ${maxResults}`);
+
   const listRes = await gmail.users.messages.list({
     userId: "me",
     maxResults,
-    q: query || "newer_than:1d",
+    q,
   });
 
   const messageIds = listRes.data.messages || [];
+  console.log(`Gmail returned ${messageIds.length} messages for user ${userId}`);
   if (messageIds.length === 0) return [];
 
   // Fetch full message details in parallel
