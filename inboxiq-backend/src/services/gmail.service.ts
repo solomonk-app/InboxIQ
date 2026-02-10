@@ -40,10 +40,16 @@ export const fetchEmails = async (
     console.log(`📬 Gmail returned ${messageIds.length} messages for user ${userId}`);
     if (messageIds.length === 0) return [];
 
-    // Fetch full message details in parallel
-    const emails = await Promise.all(
-      messageIds.map((msg) => fetchSingleEmail(gmail, msg.id!))
-    );
+    // Fetch full message details in parallel batches of 20
+    const emails: (ParsedEmail | null)[] = [];
+    const FETCH_BATCH = 20;
+    for (let i = 0; i < messageIds.length; i += FETCH_BATCH) {
+      const batch = messageIds.slice(i, i + FETCH_BATCH);
+      const batchResults = await Promise.all(
+        batch.map((msg) => fetchSingleEmail(gmail, msg.id!))
+      );
+      emails.push(...batchResults);
+    }
 
     return emails.filter((e): e is ParsedEmail => e !== null);
   } catch (gmailErr: any) {

@@ -13,7 +13,8 @@ export const generateDigest = async (
 
   // 1. Fetch emails from Gmail based on frequency window
   const query = buildDateQuery(frequency);
-  const emails = await fetchEmails(userId, 100, query);
+  const maxEmails = frequency === "daily" ? 50 : 100;
+  const emails = await fetchEmails(userId, maxEmails, query);
 
   console.log(`📨 Fetched ${emails.length} emails from Gmail for user ${userId}`);
 

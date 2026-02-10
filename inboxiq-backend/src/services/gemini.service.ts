@@ -12,13 +12,21 @@ import {
 export const categorizeEmails = async (
   emails: ParsedEmail[]
 ): Promise<CategorizedEmail[]> => {
-  const BATCH_SIZE = 10;
-  const results: CategorizedEmail[] = [];
+  const BATCH_SIZE = 20;
 
+  // Build all batches
+  const batches: ParsedEmail[][] = [];
   for (let i = 0; i < emails.length; i += BATCH_SIZE) {
-    const batch = emails.slice(i, i + BATCH_SIZE);
-    const batchResults = await categorizeBatch(batch);
-    results.push(...batchResults);
+    batches.push(emails.slice(i, i + BATCH_SIZE));
+  }
+
+  // Run up to 3 batches concurrently
+  const CONCURRENCY = 3;
+  const results: CategorizedEmail[] = [];
+  for (let i = 0; i < batches.length; i += CONCURRENCY) {
+    const concurrent = batches.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.all(concurrent.map(categorizeBatch));
+    results.push(...batchResults.flat());
   }
 
   return results;
