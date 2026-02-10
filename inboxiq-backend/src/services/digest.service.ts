@@ -1,6 +1,6 @@
 import { supabase } from "../config/supabase";
 import { fetchEmails, buildDateQuery } from "./gmail.service";
-import { categorizeEmails, generateDigestSummary } from "./gemini.service";
+import { categorizeAndSummarize } from "./gemini.service";
 import { sendPushNotification } from "./notification.service";
 import { DigestFrequency, DigestSummary } from "../types";
 
@@ -31,11 +31,11 @@ export const generateDigest = async (
     return emptySummary;
   }
 
-  // 2. Categorize all emails with Gemini AI
-  const categorized = await categorizeEmails(emails);
+  // 2. Categorize + generate digest summary in a SINGLE Gemini call
+  const { categorized, digest } = await categorizeAndSummarize(emails);
   console.log(`🏷️ Categorized ${categorized.length} emails for user ${userId}`);
 
-  // 3. Store categorized emails and generate digest summary in parallel
+  // 3. Store categorized emails in DB
   const emailRecords = categorized.map((cat) => {
     const email = emails.find((e) => e.messageId === cat.messageId);
     return {
@@ -55,18 +55,10 @@ export const generateDigest = async (
     };
   });
 
-  // Run DB upsert and Gemini digest summary concurrently
-  const storeEmails = async () => {
-    const { error: delErr } = await supabase.from("email_categories").delete().eq("user_id", userId);
-    if (delErr) console.error("Failed to clear old email categories:", delErr);
-    const { error: insErr } = await supabase.from("email_categories").insert(emailRecords);
-    if (insErr) console.error("Failed to insert email categories:", insErr);
-  };
-
-  const [, digest] = await Promise.all([
-    storeEmails(),
-    generateDigestSummary(emails, categorized),
-  ]);
+  const { error: delErr } = await supabase.from("email_categories").delete().eq("user_id", userId);
+  if (delErr) console.error("Failed to clear old email categories:", delErr);
+  const { error: insErr } = await supabase.from("email_categories").insert(emailRecords);
+  if (insErr) console.error("Failed to insert email categories:", insErr);
 
   // 4. Clear old digests and store the latest one
   await supabase.from("digest_history").delete().eq("user_id", userId);

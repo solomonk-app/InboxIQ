@@ -8,138 +8,51 @@ import {
   StoredEmail,
 } from "../types";
 
-// ─── Categorize Emails with Gemini ───────────────────────────────
-export const categorizeEmails = async (
+// ─── Categorize Emails + Generate Digest in ONE Gemini Call ──────
+export const categorizeAndSummarize = async (
   emails: ParsedEmail[]
-): Promise<CategorizedEmail[]> => {
-  const BATCH_SIZE = 20;
-
-  // Build all batches
-  const batches: ParsedEmail[][] = [];
-  for (let i = 0; i < emails.length; i += BATCH_SIZE) {
-    batches.push(emails.slice(i, i + BATCH_SIZE));
-  }
-
-  // Run up to 3 batches concurrently
-  const CONCURRENCY = 3;
-  const results: CategorizedEmail[] = [];
-  for (let i = 0; i < batches.length; i += CONCURRENCY) {
-    const concurrent = batches.slice(i, i + CONCURRENCY);
-    const batchResults = await Promise.all(concurrent.map(categorizeBatch));
-    results.push(...batchResults.flat());
-  }
-
-  return results;
-};
-
-const categorizeBatch = async (
-  emails: ParsedEmail[]
-): Promise<CategorizedEmail[]> => {
+): Promise<{ categorized: CategorizedEmail[]; digest: DigestSummary }> => {
   const emailSummaries = emails.map((e) => ({
     messageId: e.messageId,
     from: e.from,
     fromEmail: e.fromEmail,
     subject: e.subject,
     snippet: e.snippet,
-    bodyPreview: e.body.substring(0, 500),
   }));
 
-  const prompt = `You are an expert email classifier. Analyze each email and return a JSON array.
+  const prompt = `You are an expert email classifier and digest assistant. Analyze ALL emails below and return a single JSON response with two sections.
 
-For each email, determine:
-1. **category**: One of: "financial", "newsletters", "personal", "work", "social", "promotions", "updates", "other"
-2. **confidence**: Float 0-1 indicating classification confidence
-3. **summary**: A concise 1-2 sentence summary of the email content
-4. **priority**: "high" (needs immediate attention), "medium" (important but not urgent), "low" (informational only)
-5. **actionRequired**: Boolean — does the recipient need to take action?
+TASK 1 — Classify each email:
+- category: One of "financial", "newsletters", "personal", "work", "social", "promotions", "updates", "other"
+- confidence: Float 0-1
+- summary: 1 sentence summary
+- priority: "high", "medium", or "low"
+- actionRequired: boolean
 
 Classification rules:
-- "financial": Banks, payments, invoices, tax documents, investment updates, billing
-- "newsletters": Subscribed digests, editorial content, curated roundups
-- "personal": Friends, family, non-work acquaintances, personal conversations
-- "work": Colleagues, project tools (Jira, Slack, Asana), meetings, HR
-- "social": Social media notifications (LinkedIn, Twitter, Facebook, Instagram)
-- "promotions": Marketing, deals, coupons, product announcements, sales
-- "updates": Shipping, account security, password resets, app updates
-- "other": Anything that doesn't fit the above
+- "financial": Banks, payments, invoices, billing
+- "newsletters": Subscribed digests, editorial content
+- "personal": Friends, family, personal conversations
+- "work": Colleagues, project tools, meetings, HR
+- "social": Social media notifications
+- "promotions": Marketing, deals, sales
+- "updates": Shipping, security, password resets, app updates
+- "other": Anything else
 
-Emails to classify:
-${JSON.stringify(emailSummaries, null, 2)}
+TASK 2 — Generate a digest summary with categories overview, highlights, and action items.
 
-Return ONLY a JSON array with objects matching this schema:
-[{ "messageId": string, "category": string, "confidence": number, "summary": string, "priority": string, "actionRequired": boolean }]`;
+Emails:
+${JSON.stringify(emailSummaries)}
 
-  try {
-    const result = await geminiModel.generateContent(prompt);
-    const text = result.response.text();
-    return JSON.parse(text) as CategorizedEmail[];
-  } catch (err) {
-    console.error("Gemini categorization failed:", err);
-    return emails.map((e) => ({
-      messageId: e.messageId,
-      category: "other" as EmailCategory,
-      confidence: 0,
-      summary: e.snippet,
-      priority: "low" as const,
-      actionRequired: false,
-    }));
-  }
-};
-
-// ─── Generate Full Digest Summary ────────────────────────────────
-export const generateDigestSummary = async (
-  emails: ParsedEmail[],
-  categorized: CategorizedEmail[]
-): Promise<DigestSummary> => {
-  // Group emails by category
-  const categoryMap = new Map<
-    EmailCategory,
-    { emails: ParsedEmail[]; categorized: CategorizedEmail[] }
-  >();
-
-  for (const cat of categorized) {
-    const email = emails.find((e) => e.messageId === cat.messageId);
-    if (!email) continue;
-
-    if (!categoryMap.has(cat.category)) {
-      categoryMap.set(cat.category, { emails: [], categorized: [] });
-    }
-    categoryMap.get(cat.category)!.emails.push(email);
-    categoryMap.get(cat.category)!.categorized.push(cat);
-  }
-
-  const categoryContext = Array.from(categoryMap.entries()).map(([cat, data]) => ({
-    category: cat,
-    count: data.emails.length,
-    emails: data.emails.map((e, i) => ({
-      from: e.from,
-      subject: e.subject,
-      snippet: e.snippet,
-      priority: data.categorized[i]?.priority,
-      actionRequired: data.categorized[i]?.actionRequired,
-    })),
-  }));
-
-  const prompt = `You are an AI email assistant generating a digest summary for a user's inbox.
-
-Categorized email data:
-${JSON.stringify(categoryContext, null, 2)}
-
-Generate a comprehensive digest summary as JSON with this schema:
+Return ONLY this JSON schema:
 {
-  "categories": [
-    {
-      "category": "string",
-      "count": number,
-      "summary": "string (2-3 sentence overview)",
-      "topEmails": [{ "subject": "string", "from": "string", "priority": "string" }]
-    }
-  ],
-  "highlights": ["string (up to 5 key highlights)"],
-  "actionItems": ["string (specific action items extracted from emails)"]
-}
-
-Be concise, helpful, and prioritize what matters most. Highlight urgent items first.`;
+  "emails": [{ "messageId": string, "category": string, "confidence": number, "summary": string, "priority": string, "actionRequired": boolean }],
+  "digest": {
+    "categories": [{ "category": string, "count": number, "summary": string, "topEmails": [{ "subject": string, "from": string, "priority": string }] }],
+    "highlights": [string],
+    "actionItems": [string]
+  }
+}`;
 
   try {
     const result = await geminiModel.generateContent(prompt);
@@ -147,33 +60,60 @@ Be concise, helpful, and prioritize what matters most. Highlight urgent items fi
     const parsed = JSON.parse(text);
 
     return {
-      totalEmails: emails.length,
-      unreadCount: emails.filter((e) => !e.isRead).length,
-      categories: parsed.categories as CategorySummary[],
-      highlights: parsed.highlights as string[],
-      actionItems: parsed.actionItems as string[],
-      generatedAt: new Date().toISOString(),
+      categorized: parsed.emails as CategorizedEmail[],
+      digest: {
+        totalEmails: emails.length,
+        unreadCount: emails.filter((e) => !e.isRead).length,
+        categories: parsed.digest.categories as CategorySummary[],
+        highlights: parsed.digest.highlights as string[],
+        actionItems: parsed.digest.actionItems as string[],
+        generatedAt: new Date().toISOString(),
+      },
     };
   } catch (err) {
-    console.error("Gemini digest generation failed:", err);
+    console.error("Gemini combined analysis failed:", err);
+    // Fallback: basic categorization without AI
+    const categorized = emails.map((e) => ({
+      messageId: e.messageId,
+      category: "other" as EmailCategory,
+      confidence: 0,
+      summary: e.snippet,
+      priority: "low" as const,
+      actionRequired: false,
+    }));
     return {
-      totalEmails: emails.length,
-      unreadCount: emails.filter((e) => !e.isRead).length,
-      categories: Array.from(categoryMap.entries()).map(([cat, data]) => ({
-        category: cat,
-        count: data.emails.length,
-        summary: `${data.emails.length} emails in this category.`,
-        topEmails: data.emails.slice(0, 3).map((e) => ({
-          subject: e.subject,
-          from: e.from,
-          priority: "medium",
-        })),
-      })),
-      highlights: ["Digest generated with limited AI analysis."],
-      actionItems: [],
-      generatedAt: new Date().toISOString(),
+      categorized,
+      digest: {
+        totalEmails: emails.length,
+        unreadCount: emails.filter((e) => !e.isRead).length,
+        categories: [{ category: "other" as EmailCategory, count: emails.length, summary: `${emails.length} emails.`, topEmails: [] }],
+        highlights: ["Digest generated with limited AI analysis."],
+        actionItems: [],
+        generatedAt: new Date().toISOString(),
+      },
     };
   }
+};
+
+// Keep old exports for backward compatibility
+export const categorizeEmails = async (emails: ParsedEmail[]): Promise<CategorizedEmail[]> => {
+  const { categorized } = await categorizeAndSummarize(emails);
+  return categorized;
+};
+
+export const generateDigestSummary = async (
+  emails: ParsedEmail[],
+  categorized: CategorizedEmail[]
+): Promise<DigestSummary> => {
+  // This is now only used as a no-op since we use the combined call
+  return {
+    totalEmails: emails.length,
+    unreadCount: emails.filter((e) => !e.isRead).length,
+    categories: [],
+    highlights: [],
+    actionItems: [],
+    generatedAt: new Date().toISOString(),
+  };
 };
 
 // ─── Compose Summary Email Body with Gemini ─────────────────────
