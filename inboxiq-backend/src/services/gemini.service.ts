@@ -13,12 +13,20 @@ export const categorizeEmails = async (
   emails: ParsedEmail[]
 ): Promise<CategorizedEmail[]> => {
   const BATCH_SIZE = 10;
-  const results: CategorizedEmail[] = [];
+  const MAX_CONCURRENT = 5;
 
+  // Split emails into batches
+  const batches: ParsedEmail[][] = [];
   for (let i = 0; i < emails.length; i += BATCH_SIZE) {
-    const batch = emails.slice(i, i + BATCH_SIZE);
-    const batchResults = await categorizeBatch(batch);
-    results.push(...batchResults);
+    batches.push(emails.slice(i, i + BATCH_SIZE));
+  }
+
+  // Process batches with limited concurrency
+  const results: CategorizedEmail[] = [];
+  for (let i = 0; i < batches.length; i += MAX_CONCURRENT) {
+    const chunk = batches.slice(i, i + MAX_CONCURRENT);
+    const chunkResults = await Promise.all(chunk.map((batch) => categorizeBatch(batch)));
+    results.push(...chunkResults.flat());
   }
 
   return results;
@@ -33,7 +41,6 @@ const categorizeBatch = async (
     fromEmail: e.fromEmail,
     subject: e.subject,
     snippet: e.snippet,
-    bodyPreview: e.body.substring(0, 500),
   }));
 
   const prompt = `You are an expert email classifier. Analyze each email and return a JSON array.

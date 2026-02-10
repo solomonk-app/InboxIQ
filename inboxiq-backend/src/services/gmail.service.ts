@@ -61,7 +61,8 @@ const fetchSingleEmail = async (
     const res = await gmail.users.messages.get({
       userId: "me",
       id: messageId,
-      format: "full",
+      format: "metadata",
+      metadataHeaders: ["From", "To", "Subject", "Date"],
     });
 
     const headers = res.data.payload?.headers || [];
@@ -71,7 +72,7 @@ const fetchSingleEmail = async (
     const fromRaw = getHeader("From");
     const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
 
-    const body = extractBody(res.data.payload);
+    const snippet = res.data.snippet || "";
 
     return {
       messageId: res.data.id!,
@@ -80,8 +81,8 @@ const fetchSingleEmail = async (
       fromEmail: fromMatch ? fromMatch[2] : fromRaw,
       to: getHeader("To"),
       subject: getHeader("Subject"),
-      snippet: res.data.snippet || "",
-      body: body.substring(0, 2000), // Limit body size for AI processing
+      snippet,
+      body: snippet, // Use snippet instead of full body — sufficient for AI categorization
       date: getHeader("Date"),
       labels: res.data.labelIds || [],
       isRead: !res.data.labelIds?.includes("UNREAD"),
@@ -90,38 +91,6 @@ const fetchSingleEmail = async (
     console.error(`Failed to fetch message ${messageId}:`, err);
     return null;
   }
-};
-
-// ─── Extract body text from Gmail message payload ────────────────
-const extractBody = (payload?: gmail_v1.Schema$MessagePart): string => {
-  if (!payload) return "";
-
-  // Direct body data
-  if (payload.body?.data) {
-    return Buffer.from(payload.body.data, "base64").toString("utf-8");
-  }
-
-  // Multipart — prefer text/plain, fallback to stripped text/html
-  if (payload.parts) {
-    const textPart = payload.parts.find((p) => p.mimeType === "text/plain");
-    if (textPart?.body?.data) {
-      return Buffer.from(textPart.body.data, "base64").toString("utf-8");
-    }
-
-    const htmlPart = payload.parts.find((p) => p.mimeType === "text/html");
-    if (htmlPart?.body?.data) {
-      const html = Buffer.from(htmlPart.body.data, "base64").toString("utf-8");
-      return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-    }
-
-    // Recurse into nested multipart sections
-    for (const part of payload.parts) {
-      const nested = extractBody(part);
-      if (nested) return nested;
-    }
-  }
-
-  return "";
 };
 
 // ─── Send an Email via SMTP (from nomo2606@gmail.com) ───────────
