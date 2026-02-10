@@ -12,7 +12,7 @@ import {
 export const categorizeEmails = async (
   emails: ParsedEmail[]
 ): Promise<CategorizedEmail[]> => {
-  const BATCH_SIZE = 10;
+  const BATCH_SIZE = 20;
   const MAX_CONCURRENT = 5;
 
   // Split emails into batches
@@ -32,7 +32,7 @@ export const categorizeEmails = async (
   return results;
 };
 
-const categorizeBatch = async (
+export const categorizeBatch = async (
   emails: ParsedEmail[]
 ): Promise<CategorizedEmail[]> => {
   const emailSummaries = emails.map((e) => ({

@@ -3,13 +3,8 @@ import { createGmailClient } from "../config/google";
 import { supabase } from "../config/supabase";
 import { ParsedEmail, DigestFrequency } from "../types";
 
-// ─── Fetch Emails from Gmail API ─────────────────────────────────
-export const fetchEmails = async (
-  userId: string,
-  maxResults: number = 50,
-  query?: string
-): Promise<ParsedEmail[]> => {
-  // Retrieve stored OAuth tokens for this user
+// ─── Create Gmail client for a user ─────────────────────────────
+const getGmailClient = async (userId: string) => {
   const { data: user, error } = await supabase
     .from("users")
     .select("google_access_token, google_refresh_token")
@@ -23,9 +18,16 @@ export const fetchEmails = async (
 
   console.log(`🔑 Tokens for user ${userId}: access=${user.google_access_token ? "present" : "MISSING"}, refresh=${user.google_refresh_token ? "present" : "MISSING"}`);
 
-  const gmail = createGmailClient(user.google_access_token, user.google_refresh_token, userId);
+  return createGmailClient(user.google_access_token, user.google_refresh_token, userId);
+};
 
-  // List message IDs matching the query
+// ─── List message IDs from Gmail ────────────────────────────────
+export const listMessageIds = async (
+  userId: string,
+  maxResults: number = 50,
+  query?: string
+): Promise<{ gmail: gmail_v1.Gmail; messageIds: string[] }> => {
+  const gmail = await getGmailClient(userId);
   const q = query || "newer_than:1d";
   console.log(`📧 Gmail query for user ${userId}: "${q}", maxResults: ${maxResults}`);
 
@@ -36,20 +38,35 @@ export const fetchEmails = async (
       q,
     });
 
-    const messageIds = listRes.data.messages || [];
-    console.log(`📬 Gmail returned ${messageIds.length} messages for user ${userId}`);
-    if (messageIds.length === 0) return [];
-
-    // Fetch full message details in parallel
-    const emails = await Promise.all(
-      messageIds.map((msg) => fetchSingleEmail(gmail, msg.id!))
-    );
-
-    return emails.filter((e): e is ParsedEmail => e !== null);
+    const messages = listRes.data.messages || [];
+    console.log(`📬 Gmail returned ${messages.length} messages for user ${userId}`);
+    return { gmail, messageIds: messages.map((m) => m.id!) };
   } catch (gmailErr: any) {
     console.error(`❌ Gmail API error for user ${userId}:`, gmailErr.message, gmailErr.response?.data || "");
     throw gmailErr;
   }
+};
+
+// ─── Fetch a batch of messages by ID ────────────────────────────
+export const fetchMessageBatch = async (
+  gmail: gmail_v1.Gmail,
+  ids: string[]
+): Promise<ParsedEmail[]> => {
+  const emails = await Promise.all(
+    ids.map((id) => fetchSingleEmail(gmail, id))
+  );
+  return emails.filter((e): e is ParsedEmail => e !== null);
+};
+
+// ─── Fetch Emails from Gmail API (backward-compatible) ──────────
+export const fetchEmails = async (
+  userId: string,
+  maxResults: number = 50,
+  query?: string
+): Promise<ParsedEmail[]> => {
+  const { gmail, messageIds } = await listMessageIds(userId, maxResults, query);
+  if (messageIds.length === 0) return [];
+  return fetchMessageBatch(gmail, messageIds);
 };
 
 // ─── Parse a single Gmail message ────────────────────────────────

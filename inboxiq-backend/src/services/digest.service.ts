@@ -1,23 +1,26 @@
 import { supabase } from "../config/supabase";
-import { fetchEmails, buildDateQuery } from "./gmail.service";
-import { categorizeEmails, generateDigestSummary } from "./gemini.service";
+import { listMessageIds, fetchMessageBatch, buildDateQuery } from "./gmail.service";
+import { categorizeBatch, generateDigestSummary } from "./gemini.service";
 import { sendPushNotification } from "./notification.service";
-import { DigestFrequency, DigestSummary } from "../types";
+import { DigestFrequency, DigestSummary, ParsedEmail, CategorizedEmail } from "../types";
+
+const PIPELINE_CHUNK_SIZE = 20;
 
 // ─── Generate and store a full digest for a user ─────────────────
 export const generateDigest = async (
   userId: string,
   frequency: DigestFrequency
 ): Promise<DigestSummary> => {
+  const t0 = Date.now();
   console.log(`📬 Generating ${frequency} digest for user ${userId}`);
 
-  // 1. Fetch emails from Gmail based on frequency window
+  // 1. List message IDs from Gmail
   const query = buildDateQuery(frequency);
-  const emails = await fetchEmails(userId, 100, query);
+  const { gmail, messageIds } = await listMessageIds(userId, 100, query);
 
-  console.log(`📨 Fetched ${emails.length} emails from Gmail for user ${userId}`);
+  console.log(`📨 Found ${messageIds.length} message IDs for user ${userId}`);
 
-  if (emails.length === 0) {
+  if (messageIds.length === 0) {
     console.log(`⚠️ No emails found for user ${userId} with query: ${query}`);
     const emptySummary: DigestSummary = {
       totalEmails: 0,
@@ -30,9 +33,29 @@ export const generateDigest = async (
     return emptySummary;
   }
 
-  // 2. Categorize all emails with Gemini AI
-  const categorized = await categorizeEmails(emails);
-  console.log(`🏷️ Categorized ${categorized.length} emails for user ${userId}`);
+  // 2. Pipeline: split IDs into chunks, each chunk fetches + categorizes concurrently
+  const idChunks: string[][] = [];
+  for (let i = 0; i < messageIds.length; i += PIPELINE_CHUNK_SIZE) {
+    idChunks.push(messageIds.slice(i, i + PIPELINE_CHUNK_SIZE));
+  }
+
+  console.log(`🚀 Pipeline: ${idChunks.length} chunks of ≤${PIPELINE_CHUNK_SIZE} emails`);
+
+  const chunkResults = await Promise.all(
+    idChunks.map(async (ids, idx) => {
+      const fetched = await fetchMessageBatch(gmail, ids);
+      console.log(`  📦 Chunk ${idx + 1}: fetched ${fetched.length} emails, categorizing...`);
+      const categorized = await categorizeBatch(fetched);
+      console.log(`  🏷️ Chunk ${idx + 1}: categorized ${categorized.length} emails`);
+      return { emails: fetched, categorized };
+    })
+  );
+
+  // Flatten all chunk results
+  const emails: ParsedEmail[] = chunkResults.flatMap((r) => r.emails);
+  const categorized: CategorizedEmail[] = chunkResults.flatMap((r) => r.categorized);
+
+  console.log(`🏷️ Pipeline complete: ${emails.length} fetched, ${categorized.length} categorized`);
 
   // 3. Run DB writes and digest summary generation in parallel
   const emailRecords = categorized.map((cat) => {
@@ -100,7 +123,7 @@ export const generateDigest = async (
     data: { type: "digest", frequency },
   });
 
-  console.log(`✅ Digest complete: ${digest.totalEmails} emails categorized for user ${userId}`);
+  console.log(`✅ Digest complete: ${digest.totalEmails} emails in ${Date.now() - t0}ms for user ${userId}`);
   return digest;
 };
 
