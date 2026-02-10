@@ -9,5 +9,6 @@ dist/
 *.orig.*
 web-build/
 ios/
+android/
 .env
 .DS_Store
