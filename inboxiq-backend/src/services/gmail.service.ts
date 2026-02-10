@@ -40,9 +40,9 @@ export const fetchEmails = async (
     console.log(`📬 Gmail returned ${messageIds.length} messages for user ${userId}`);
     if (messageIds.length === 0) return [];
 
-    // Fetch full message details in parallel batches of 20
+    // Fetch message metadata in parallel batches of 30
     const emails: (ParsedEmail | null)[] = [];
-    const FETCH_BATCH = 20;
+    const FETCH_BATCH = 30;
     for (let i = 0; i < messageIds.length; i += FETCH_BATCH) {
       const batch = messageIds.slice(i, i + FETCH_BATCH);
       const batchResults = await Promise.all(
@@ -58,7 +58,7 @@ export const fetchEmails = async (
   }
 };
 
-// ─── Parse a single Gmail message ────────────────────────────────
+// ─── Parse a single Gmail message (metadata only for speed) ─────
 const fetchSingleEmail = async (
   gmail: gmail_v1.Gmail,
   messageId: string
@@ -67,7 +67,8 @@ const fetchSingleEmail = async (
     const res = await gmail.users.messages.get({
       userId: "me",
       id: messageId,
-      format: "full",
+      format: "metadata",
+      metadataHeaders: ["From", "To", "Subject", "Date"],
     });
 
     const headers = res.data.payload?.headers || [];
@@ -77,8 +78,6 @@ const fetchSingleEmail = async (
     const fromRaw = getHeader("From");
     const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
 
-    const body = extractBody(res.data.payload);
-
     return {
       messageId: res.data.id!,
       threadId: res.data.threadId!,
@@ -87,7 +86,7 @@ const fetchSingleEmail = async (
       to: getHeader("To"),
       subject: getHeader("Subject"),
       snippet: res.data.snippet || "",
-      body: body.substring(0, 2000), // Limit body size for AI processing
+      body: res.data.snippet || "", // Use snippet instead of full body
       date: getHeader("Date"),
       labels: res.data.labelIds || [],
       isRead: !res.data.labelIds?.includes("UNREAD"),
