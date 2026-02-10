@@ -238,7 +238,7 @@ router.get("/google/callback", async (req: Request, res: Response) => {
       redirectTarget = `inboxiq://auth?${params}`;
     }
 
-    console.log("OAuth redirect target:", redirectTarget.substring(0, 80) + "...");
+    console.log("OAuth redirect target scheme:", redirectTarget.split("?")[0]);
 
     // Build a fallback link for the "Tap here" button.
     // On Android, use an intent:// URI as a manual fallback in case the

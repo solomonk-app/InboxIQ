@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from "axios";
+import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
@@ -7,13 +8,13 @@ const PROD_URL = "https://inboxiq-lmfv.onrender.com/api";
 // Use localhost for all platforms — on Android physical devices and emulators,
 // run "adb reverse tcp:3000 tcp:3000" so localhost reaches the dev machine.
 const DEV_URL = "http://localhost:3000/api";
-const API_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? DEV_URL : PROD_URL);
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? DEV_URL : PROD_URL);
 
 // Deep link base URL for Expo Go, base64-encoded to avoid URL parsing issues.
-// In dev, the OAuth callback stays on localhost (reachable via adb reverse)
-// and after auth the backend redirects to this deep link.
+// Uses hostUri from Constants so it works on both simulators (localhost)
+// and physical devices (Mac's WiFi IP).
 const DEEP_LINK_BASE = __DEV__
-  ? btoa("exp://localhost:8081")
+  ? btoa(`exp://${Constants.expoConfig?.hostUri || "localhost:8081"}`)
   : undefined;
 
 // ─── Axios Instance ──────────────────────────────────────────────
@@ -50,6 +51,10 @@ export const authAPI = {
   getGoogleAuthUrl: () => {
     const params: Record<string, string> = {};
     if (DEEP_LINK_BASE) params.deep_link = DEEP_LINK_BASE;
+    // Pass callback_url so the backend uses the correct redirect URI
+    // (needed when frontend hits production backend from a dev build)
+    const baseUrl = API_URL.replace(/\/api$/, "");
+    params.callback_url = `${baseUrl}/api/auth/google/callback`;
     return api.get<{ url: string }>("/auth/google", { params });
   },
 
