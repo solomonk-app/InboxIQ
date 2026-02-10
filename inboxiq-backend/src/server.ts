@@ -24,7 +24,7 @@ app.use(helmet());
 app.use(
   cors({
     origin: process.env.NODE_ENV === "production"
-      ? ["https://inboxiq-lmfv.onrender.com"]
+      ? ["https://inboxiq-lmfv.onrender.com", "https://getinboxiq.app"]
       : true,
     credentials: true,
   })
