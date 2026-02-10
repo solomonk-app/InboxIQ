@@ -56,28 +56,30 @@ export const generateDigest = async (
   });
 
   // Run DB upsert and Gemini digest summary concurrently
+  const storeEmails = async () => {
+    const { error: delErr } = await supabase.from("email_categories").delete().eq("user_id", userId);
+    if (delErr) console.error("Failed to clear old email categories:", delErr);
+    const { error: insErr } = await supabase.from("email_categories").insert(emailRecords);
+    if (insErr) console.error("Failed to insert email categories:", insErr);
+  };
+
   const [, digest] = await Promise.all([
-    // DB: clear old emails and insert new ones
-    supabase.from("email_categories").delete().eq("user_id", userId)
-      .then(() => supabase.from("email_categories").insert(emailRecords))
-      .catch((err) => console.error("Failed to store email categories:", err)),
-    // AI: generate digest summary
+    storeEmails(),
     generateDigestSummary(emails, categorized),
   ]);
 
   // 4. Clear old digests and store the latest one
-  const { error: digestError } = await supabase.from("digest_history")
-    .delete().eq("user_id", userId)
-    .then(() => supabase.from("digest_history").insert({
-      user_id: userId,
-      frequency,
-      total_emails: digest.totalEmails,
-      unread_count: digest.unreadCount,
-      categories: digest.categories,
-      highlights: digest.highlights,
-      action_items: digest.actionItems,
-      generated_at: digest.generatedAt,
-    }));
+  await supabase.from("digest_history").delete().eq("user_id", userId);
+  const { error: digestError } = await supabase.from("digest_history").insert({
+    user_id: userId,
+    frequency,
+    total_emails: digest.totalEmails,
+    unread_count: digest.unreadCount,
+    categories: digest.categories,
+    highlights: digest.highlights,
+    action_items: digest.actionItems,
+    generated_at: digest.generatedAt,
+  });
 
   if (digestError) {
     console.error("Failed to store digest:", digestError);
