@@ -85,7 +85,94 @@ Return ONLY a JSON array with objects matching this schema:
   }
 };
 
-// ─── Generate Full Digest Summary ────────────────────────────────
+// ─── Build Digest Summary Programmatically (no Gemini call) ─────
+export const buildDigestSummary = (
+  emails: ParsedEmail[],
+  categorized: CategorizedEmail[]
+): DigestSummary => {
+  const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+  // Group by category
+  const categoryMap = new Map<
+    EmailCategory,
+    { emails: ParsedEmail[]; categorized: CategorizedEmail[] }
+  >();
+
+  for (const cat of categorized) {
+    const email = emails.find((e) => e.messageId === cat.messageId);
+    if (!email) continue;
+    if (!categoryMap.has(cat.category)) {
+      categoryMap.set(cat.category, { emails: [], categorized: [] });
+    }
+    categoryMap.get(cat.category)!.emails.push(email);
+    categoryMap.get(cat.category)!.categorized.push(cat);
+  }
+
+  // Build category summaries
+  const categories: CategorySummary[] = Array.from(categoryMap.entries()).map(
+    ([cat, data]) => {
+      // Sort by priority (high first)
+      const sorted = [...data.categorized].sort(
+        (a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2)
+      );
+      const top3 = sorted.slice(0, 3);
+
+      // Build summary from top email summaries
+      const topSummaries = top3.map((c) => c.summary).join("; ");
+      const summary =
+        data.emails.length === 1
+          ? topSummaries
+          : `${data.emails.length} emails including: ${topSummaries}`;
+
+      const topEmails = top3.map((c) => {
+        const email = data.emails.find((e) => e.messageId === c.messageId);
+        return {
+          subject: email?.subject || "",
+          from: email?.from || "",
+          priority: c.priority,
+        };
+      });
+
+      return { category: cat, count: data.emails.length, summary, topEmails };
+    }
+  );
+
+  // Highlights: up to 5 high-priority or action-required emails
+  const highlightCandidates = [...categorized]
+    .filter((c) => c.priority === "high" || c.actionRequired)
+    .sort((a, b) => {
+      // actionRequired + high priority first
+      const scoreA = (a.actionRequired ? 0 : 1) + (priorityOrder[a.priority] ?? 2);
+      const scoreB = (b.actionRequired ? 0 : 1) + (priorityOrder[b.priority] ?? 2);
+      return scoreA - scoreB;
+    });
+  const highlights = highlightCandidates.slice(0, 5).map((c) => {
+    const email = emails.find((e) => e.messageId === c.messageId);
+    return `${email?.from || "Unknown"}: ${c.summary}`;
+  });
+  if (highlights.length === 0) {
+    highlights.push(`${emails.length} emails processed — nothing urgent.`);
+  }
+
+  // Action items: emails where actionRequired === true
+  const actionItems = categorized
+    .filter((c) => c.actionRequired)
+    .map((c) => {
+      const email = emails.find((e) => e.messageId === c.messageId);
+      return `${email?.from || "Unknown"} — ${email?.subject || c.summary}`;
+    });
+
+  return {
+    totalEmails: emails.length,
+    unreadCount: emails.filter((e) => !e.isRead).length,
+    categories,
+    highlights,
+    actionItems,
+    generatedAt: new Date().toISOString(),
+  };
+};
+
+// ─── Generate Full Digest Summary (legacy, uses Gemini) ─────────
 export const generateDigestSummary = async (
   emails: ParsedEmail[],
   categorized: CategorizedEmail[]

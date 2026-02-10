@@ -1,6 +1,6 @@
 import { supabase } from "../config/supabase";
 import { listMessageIds, fetchMessageBatch, buildDateQuery } from "./gmail.service";
-import { categorizeBatch, generateDigestSummary } from "./gemini.service";
+import { categorizeBatch, buildDigestSummary } from "./gemini.service";
 import { sendPushNotification } from "./notification.service";
 import { DigestFrequency, DigestSummary, ParsedEmail, CategorizedEmail } from "../types";
 
@@ -41,6 +41,15 @@ export const generateDigest = async (
 
   console.log(`🚀 Pipeline: ${idChunks.length} chunks of ≤${PIPELINE_CHUNK_SIZE} emails`);
 
+  // Start DB cleanup early (runs in parallel with the pipeline)
+  const cleanupPromise = supabase
+    .from("email_categories")
+    .delete()
+    .eq("user_id", userId)
+    .then(({ error }) => {
+      if (error) console.error("Failed to clear old email categories:", error);
+    });
+
   const chunkResults = await Promise.all(
     idChunks.map(async (ids, idx) => {
       const fetched = await fetchMessageBatch(gmail, ids);
@@ -57,7 +66,10 @@ export const generateDigest = async (
 
   console.log(`🏷️ Pipeline complete: ${emails.length} fetched, ${categorized.length} categorized`);
 
-  // 3. Run DB writes and digest summary generation in parallel
+  // 3. Build digest summary programmatically (no Gemini call)
+  const digest = buildDigestSummary(emails, categorized);
+
+  // 4. Wait for cleanup, then insert new email records
   const emailRecords = categorized.map((cat) => {
     const email = emails.find((e) => e.messageId === cat.messageId);
     return {
@@ -77,26 +89,13 @@ export const generateDigest = async (
     };
   });
 
-  const [digest] = await Promise.all([
-    // 4. Generate the overall digest summary with Gemini
-    generateDigestSummary(emails, categorized),
-    // 3a. Clear previous emails and insert new batch
-    (async () => {
-      const { error: deleteError } = await supabase
-        .from("email_categories")
-        .delete()
-        .eq("user_id", userId);
-      if (deleteError) {
-        console.error("Failed to clear old email categories:", deleteError);
-      }
-      const { error: insertError } = await supabase
-        .from("email_categories")
-        .insert(emailRecords);
-      if (insertError) {
-        console.error("Failed to insert email categories:", insertError);
-      }
-    })(),
-  ]);
+  await cleanupPromise;
+  const { error: insertError } = await supabase
+    .from("email_categories")
+    .insert(emailRecords);
+  if (insertError) {
+    console.error("Failed to insert email categories:", insertError);
+  }
 
   // 5. Clear old digests and store the latest one
   await supabase.from("digest_history").delete().eq("user_id", userId);
