@@ -2,9 +2,36 @@ import { supabase } from "../config/supabase";
 import { listMessageIds, fetchMessageBatch, buildDateQuery } from "./gmail.service";
 import { categorizeBatch, buildDigestSummary } from "./gemini.service";
 import { sendPushNotification } from "./notification.service";
-import { DigestFrequency, DigestSummary, ParsedEmail, CategorizedEmail } from "../types";
+import { DigestFrequency, DigestSummary, ParsedEmail, CategorizedEmail, StoredEmail } from "../types";
 
 const PIPELINE_CHUNK_SIZE = 20;
+
+// ─── Reconstruct ParsedEmail[] from cached DB records ────────────
+const cachedToEmails = (cached: StoredEmail[]): ParsedEmail[] =>
+  cached.map((r) => ({
+    messageId: r.message_id,
+    threadId: "",
+    from: r.from_name,
+    fromEmail: r.from_email,
+    to: "",
+    subject: r.subject,
+    snippet: r.snippet,
+    body: r.snippet,
+    date: r.email_date,
+    labels: [],
+    isRead: r.is_read,
+  }));
+
+// ─── Reconstruct CategorizedEmail[] from cached DB records ───────
+const cachedToCategorized = (cached: StoredEmail[]): CategorizedEmail[] =>
+  cached.map((r) => ({
+    messageId: r.message_id,
+    category: r.category,
+    confidence: r.confidence,
+    summary: r.ai_summary,
+    priority: r.priority,
+    actionRequired: r.action_required,
+  }));
 
 // ─── Generate and store a full digest for a user ─────────────────
 export const generateDigest = async (
@@ -33,89 +60,150 @@ export const generateDigest = async (
     return emptySummary;
   }
 
-  // 2. Pipeline: split IDs into chunks, each chunk fetches + categorizes concurrently
-  const idChunks: string[][] = [];
-  for (let i = 0; i < messageIds.length; i += PIPELINE_CHUNK_SIZE) {
-    idChunks.push(messageIds.slice(i, i + PIPELINE_CHUNK_SIZE));
+  // 2. Check cache: query ALL email_categories for this user
+  const gmailIdSet = new Set(messageIds);
+  const { data: allCached } = await supabase
+    .from("email_categories")
+    .select("*")
+    .eq("user_id", userId);
+
+  const cachedRecords = (allCached || []) as StoredEmail[];
+
+  // Partition: cached (still in Gmail results) vs stale (no longer in results)
+  const cached: StoredEmail[] = [];
+  const stale: StoredEmail[] = [];
+  const cachedIdSet = new Set<string>();
+
+  for (const record of cachedRecords) {
+    if (gmailIdSet.has(record.message_id)) {
+      cached.push(record);
+      cachedIdSet.add(record.message_id);
+    } else {
+      stale.push(record);
+    }
   }
 
-  console.log(`🚀 Pipeline: ${idChunks.length} chunks of ≤${PIPELINE_CHUNK_SIZE} emails`);
+  // New IDs = in Gmail but not in cache
+  const newIds = messageIds.filter((id) => !cachedIdSet.has(id));
 
-  // Start DB cleanup early (runs in parallel with the pipeline)
-  const cleanupPromise = supabase
-    .from("email_categories")
-    .delete()
-    .eq("user_id", userId)
-    .then(({ error }) => {
-      if (error) console.error("Failed to clear old email categories:", error);
+  console.log(`🗂️ Cache: ${cached.length} hit, ${newIds.length} new, ${stale.length} stale`);
+
+  // 3. Reconstruct cached data
+  const cachedEmails = cachedToEmails(cached);
+  const cachedCategorized = cachedToCategorized(cached);
+
+  // 4. Pipeline fetch+categorize only NEW emails (skip if none)
+  let newEmails: ParsedEmail[] = [];
+  let newCategorized: CategorizedEmail[] = [];
+
+  if (newIds.length > 0) {
+    const idChunks: string[][] = [];
+    for (let i = 0; i < newIds.length; i += PIPELINE_CHUNK_SIZE) {
+      idChunks.push(newIds.slice(i, i + PIPELINE_CHUNK_SIZE));
+    }
+
+    console.log(`🚀 Pipeline: ${idChunks.length} chunk(s) of ≤${PIPELINE_CHUNK_SIZE} new emails`);
+
+    const chunkResults = await Promise.all(
+      idChunks.map(async (ids, idx) => {
+        const fetched = await fetchMessageBatch(gmail, ids);
+        console.log(`  📦 Chunk ${idx + 1}: fetched ${fetched.length}, categorizing...`);
+        const categorized = await categorizeBatch(fetched);
+        console.log(`  🏷️ Chunk ${idx + 1}: categorized ${categorized.length}`);
+        return { emails: fetched, categorized };
+      })
+    );
+
+    newEmails = chunkResults.flatMap((r) => r.emails);
+    newCategorized = chunkResults.flatMap((r) => r.categorized);
+  } else {
+    console.log(`⚡ 100% cache hit — skipping fetch & categorize`);
+  }
+
+  // 5. Merge cached + new
+  const allEmails = [...cachedEmails, ...newEmails];
+  const allCategorizedEmails = [...cachedCategorized, ...newCategorized];
+
+  console.log(`🏷️ Total: ${allEmails.length} emails (${cached.length} cached + ${newEmails.length} new)`);
+
+  // 6. Build digest summary
+  const digest = buildDigestSummary(allEmails, allCategorizedEmails);
+
+  // 7. DB writes in parallel: upsert new records, delete stale, update digest_history
+  const dbPromises: PromiseLike<any>[] = [];
+
+  // Upsert new email records
+  if (newCategorized.length > 0) {
+    const newRecords = newCategorized.map((cat) => {
+      const email = newEmails.find((e) => e.messageId === cat.messageId);
+      return {
+        user_id: userId,
+        message_id: cat.messageId,
+        from_name: email?.from || "",
+        from_email: email?.fromEmail || "",
+        subject: email?.subject || "",
+        snippet: email?.snippet || "",
+        category: cat.category,
+        priority: cat.priority,
+        ai_summary: cat.summary,
+        confidence: cat.confidence,
+        action_required: cat.actionRequired,
+        is_read: email?.isRead || false,
+        email_date: email?.date || new Date().toISOString(),
+      };
     });
 
-  const chunkResults = await Promise.all(
-    idChunks.map(async (ids, idx) => {
-      const fetched = await fetchMessageBatch(gmail, ids);
-      console.log(`  📦 Chunk ${idx + 1}: fetched ${fetched.length} emails, categorizing...`);
-      const categorized = await categorizeBatch(fetched);
-      console.log(`  🏷️ Chunk ${idx + 1}: categorized ${categorized.length} emails`);
-      return { emails: fetched, categorized };
-    })
+    dbPromises.push(
+      supabase
+        .from("email_categories")
+        .upsert(newRecords, { onConflict: "user_id,message_id" })
+        .then(({ error }) => {
+          if (error) console.error("Failed to upsert email categories:", error);
+        })
+    );
+  }
+
+  // Delete stale records
+  if (stale.length > 0) {
+    const staleIds = stale.map((r) => r.message_id);
+    dbPromises.push(
+      supabase
+        .from("email_categories")
+        .delete()
+        .eq("user_id", userId)
+        .in("message_id", staleIds)
+        .then(({ error }) => {
+          if (error) console.error("Failed to delete stale email categories:", error);
+        })
+    );
+  }
+
+  // Clear old digests and store the latest one
+  dbPromises.push(
+    supabase
+      .from("digest_history")
+      .delete()
+      .eq("user_id", userId)
+      .then(() =>
+        supabase.from("digest_history").insert({
+          user_id: userId,
+          frequency,
+          total_emails: digest.totalEmails,
+          unread_count: digest.unreadCount,
+          categories: digest.categories,
+          highlights: digest.highlights,
+          action_items: digest.actionItems,
+          generated_at: digest.generatedAt,
+        })
+      )
+      .then(({ error }: any) => {
+        if (error) console.error("Failed to store digest:", error);
+      })
   );
 
-  // Flatten all chunk results
-  const emails: ParsedEmail[] = chunkResults.flatMap((r) => r.emails);
-  const categorized: CategorizedEmail[] = chunkResults.flatMap((r) => r.categorized);
+  await Promise.all(dbPromises);
 
-  console.log(`🏷️ Pipeline complete: ${emails.length} fetched, ${categorized.length} categorized`);
-
-  // 3. Build digest summary programmatically (no Gemini call)
-  const digest = buildDigestSummary(emails, categorized);
-
-  // 4. Wait for cleanup, then insert new email records
-  const emailRecords = categorized.map((cat) => {
-    const email = emails.find((e) => e.messageId === cat.messageId);
-    return {
-      user_id: userId,
-      message_id: cat.messageId,
-      from_name: email?.from || "",
-      from_email: email?.fromEmail || "",
-      subject: email?.subject || "",
-      snippet: email?.snippet || "",
-      category: cat.category,
-      priority: cat.priority,
-      ai_summary: cat.summary,
-      confidence: cat.confidence,
-      action_required: cat.actionRequired,
-      is_read: email?.isRead || false,
-      email_date: email?.date || new Date().toISOString(),
-    };
-  });
-
-  await cleanupPromise;
-  const { error: insertError } = await supabase
-    .from("email_categories")
-    .insert(emailRecords);
-  if (insertError) {
-    console.error("Failed to insert email categories:", insertError);
-  }
-
-  // 5. Clear old digests and store the latest one
-  await supabase.from("digest_history").delete().eq("user_id", userId);
-
-  const { error: digestError } = await supabase.from("digest_history").insert({
-    user_id: userId,
-    frequency,
-    total_emails: digest.totalEmails,
-    unread_count: digest.unreadCount,
-    categories: digest.categories,
-    highlights: digest.highlights,
-    action_items: digest.actionItems,
-    generated_at: digest.generatedAt,
-  });
-
-  if (digestError) {
-    console.error("Failed to store digest:", digestError);
-  }
-
-  // 6. Send push notification to the user
+  // 8. Send push notification
   await sendPushNotification(userId, {
     title: `📬 Your ${frequency} inbox digest`,
     body: `${digest.totalEmails} emails summarized • ${digest.actionItems.length} action items`,
