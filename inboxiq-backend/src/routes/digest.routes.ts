@@ -48,6 +48,7 @@ router.post("/generate", async (req: AuthRequest, res: Response) => {
 
     res.json({ digest });
   } catch (err: any) {
+    console.error("❌ Digest generation failed:", err.message, err.stack);
     res.status(500).json({ error: err.message });
   }
 });

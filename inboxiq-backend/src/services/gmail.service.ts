@@ -17,31 +17,39 @@ export const fetchEmails = async (
     .single();
 
   if (error || !user) {
+    console.error(`❌ User lookup failed for ${userId}:`, error);
     throw new Error("User not found or OAuth tokens missing");
   }
+
+  console.log(`🔑 Tokens for user ${userId}: access=${user.google_access_token ? "present" : "MISSING"}, refresh=${user.google_refresh_token ? "present" : "MISSING"}`);
 
   const gmail = createGmailClient(user.google_access_token, user.google_refresh_token, userId);
 
   // List message IDs matching the query
   const q = query || "newer_than:1d";
-  console.log(`Gmail query for user ${userId}: "${q}", maxResults: ${maxResults}`);
+  console.log(`📧 Gmail query for user ${userId}: "${q}", maxResults: ${maxResults}`);
 
-  const listRes = await gmail.users.messages.list({
-    userId: "me",
-    maxResults,
-    q,
-  });
+  try {
+    const listRes = await gmail.users.messages.list({
+      userId: "me",
+      maxResults,
+      q,
+    });
 
-  const messageIds = listRes.data.messages || [];
-  console.log(`Gmail returned ${messageIds.length} messages for user ${userId}`);
-  if (messageIds.length === 0) return [];
+    const messageIds = listRes.data.messages || [];
+    console.log(`📬 Gmail returned ${messageIds.length} messages for user ${userId}`);
+    if (messageIds.length === 0) return [];
 
-  // Fetch full message details in parallel
-  const emails = await Promise.all(
-    messageIds.map((msg) => fetchSingleEmail(gmail, msg.id!))
-  );
+    // Fetch full message details in parallel
+    const emails = await Promise.all(
+      messageIds.map((msg) => fetchSingleEmail(gmail, msg.id!))
+    );
 
-  return emails.filter((e): e is ParsedEmail => e !== null);
+    return emails.filter((e): e is ParsedEmail => e !== null);
+  } catch (gmailErr: any) {
+    console.error(`❌ Gmail API error for user ${userId}:`, gmailErr.message, gmailErr.response?.data || "");
+    throw gmailErr;
+  }
 };
 
 // ─── Parse a single Gmail message ────────────────────────────────
