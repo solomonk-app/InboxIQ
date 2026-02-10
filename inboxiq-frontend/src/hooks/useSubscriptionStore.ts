@@ -13,6 +13,8 @@ interface SubscriptionState {
   loaded: boolean;
   currentOffering: any | null;
   purchasing: boolean;
+  trialActive: boolean;
+  trialDaysRemaining: number;
 
   loadSubscription: () => Promise<void>;
   refreshUsage: () => Promise<void>;
@@ -30,6 +32,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   loaded: false,
   currentOffering: null,
   purchasing: false,
+  trialActive: true,
+  trialDaysRemaining: 5,
 
   loadSubscription: async () => {
     try {
@@ -76,6 +80,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
         canSchedule: tier === "pro",
         currentOffering,
         loaded: true,
+        trialActive: sub.trial?.isActive ?? true,
+        trialDaysRemaining: sub.trial?.daysRemaining ?? 5,
       });
     } catch (err) {
       console.error("Failed to load subscription:", err);
@@ -90,6 +96,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       set({
         digestsToday: sub.usage.digestsToday,
         maxDigests: sub.usage.maxDigests,
+        trialActive: sub.trial?.isActive ?? true,
+        trialDaysRemaining: sub.trial?.daysRemaining ?? 5,
       });
     } catch (err) {
       console.error("Failed to refresh usage:", err);

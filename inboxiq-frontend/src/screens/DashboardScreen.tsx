@@ -25,7 +25,7 @@ export default function DashboardScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuthStore();
   const categories = useThemeStore((s) => s.categories);
-  const { isPro, digestsToday, maxDigests, canSendEmail, refreshUsage } = useSubscriptionStore();
+  const { isPro, digestsToday, maxDigests, canSendEmail, refreshUsage, trialActive, trialDaysRemaining } = useSubscriptionStore();
   const colors = useColors();
   const styles = createStyles(colors);
 
@@ -69,6 +69,11 @@ export default function DashboardScreen() {
   };
 
   const handleGenerateDigest = async () => {
+    // Block if trial expired for free users
+    if (!isPro && !trialActive) {
+      navigation.navigate("Paywall" as any);
+      return;
+    }
     // Check quota for free tier
     if (!isPro && digestsToday >= maxDigests) {
       navigation.navigate("Paywall" as any);
@@ -172,27 +177,42 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Usage Indicator (Free tier) */}
+      {/* Usage / Trial Indicator (Free tier) */}
       {!isPro && (
         <View style={styles.usageBanner}>
-          <View style={styles.usageInfo}>
-            <Text style={styles.usageLabel}>Digests today</Text>
-            <Text style={styles.usageCount}>
-              {digestsToday}/{maxDigests}
-            </Text>
-          </View>
-          <View style={styles.usageBarBg}>
-            <View
-              style={[
-                styles.usageBarFill,
-                { width: `${Math.min((digestsToday / maxDigests) * 100, 100)}%` },
-                digestsToday >= maxDigests && { backgroundColor: colors.danger },
-              ]}
-            />
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate("Paywall" as any)}>
-            <Text style={styles.upgradeLink}>Upgrade to Pro</Text>
-          </TouchableOpacity>
+          {trialActive ? (
+            <>
+              <View style={styles.usageInfo}>
+                <Text style={styles.usageLabel}>Free Trial - {trialDaysRemaining} day{trialDaysRemaining !== 1 ? "s" : ""} left</Text>
+                <Text style={styles.usageCount}>
+                  {digestsToday}/{maxDigests}
+                </Text>
+              </View>
+              <View style={styles.usageBarBg}>
+                <View
+                  style={[
+                    styles.usageBarFill,
+                    { width: `${maxDigests > 0 ? Math.min((digestsToday / maxDigests) * 100, 100) : 0}%` },
+                    digestsToday >= maxDigests && { backgroundColor: colors.danger },
+                  ]}
+                />
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate("Paywall" as any)}>
+                <Text style={styles.upgradeLink}>Upgrade to Pro</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.trialExpiredTitle}>Your free trial has ended</Text>
+              <Text style={styles.trialExpiredDesc}>Upgrade to Pro to continue generating digests</Text>
+              <TouchableOpacity
+                style={styles.trialUpgradeBtn}
+                onPress={() => navigation.navigate("Paywall" as any)}
+              >
+                <Text style={styles.trialUpgradeBtnText}>Upgrade to Pro</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
 
@@ -306,6 +326,12 @@ const createStyles = (colors: ThemeColors) =>
       height: 6, backgroundColor: colors.primary, borderRadius: 3,
     },
     upgradeLink: { fontSize: 13, fontWeight: "600", color: colors.primary },
+    trialExpiredTitle: { fontSize: 15, fontWeight: "700", color: colors.danger, marginBottom: 4 },
+    trialExpiredDesc: { fontSize: 13, color: colors.textMuted, marginBottom: 12 },
+    trialUpgradeBtn: {
+      backgroundColor: colors.primaryDark, borderRadius: 10, paddingVertical: 12, alignItems: "center",
+    },
+    trialUpgradeBtnText: { fontSize: 14, fontWeight: "600", color: "#ffffff" },
 
     actionCard: {
       flexDirection: "row", alignItems: "center",

@@ -33,6 +33,13 @@ router.post("/generate", async (req: AuthRequest, res: Response) => {
     // Check digest quota for free tier
     const quota = await checkDigestQuota(req.userId!);
     if (!quota.allowed) {
+      if (quota.trialExpired) {
+        res.status(403).json({
+          error: "Your free trial has ended. Upgrade to Pro to continue.",
+          code: "TRIAL_EXPIRED",
+        });
+        return;
+      }
       res.status(403).json({
         error: "Daily digest limit reached",
         code: "DIGEST_LIMIT_REACHED",

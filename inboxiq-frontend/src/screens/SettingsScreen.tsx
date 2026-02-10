@@ -27,7 +27,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<any>();
   const { user, logout } = useAuthStore();
   const { mode: themeMode, setMode: setThemeMode } = useThemeStore();
-  const { isPro, tier, canSchedule } = useSubscriptionStore();
+  const { isPro, tier, canSchedule, trialActive, trialDaysRemaining } = useSubscriptionStore();
   const colors = useColors();
   const styles = createStyles(colors);
 
@@ -150,16 +150,23 @@ export default function SettingsScreen() {
               <Text style={styles.subscriptionLabel}>Current Plan</Text>
               <View style={[styles.tierBadge, isPro && styles.tierBadgePro]}>
                 <Text style={[styles.tierBadgeText, isPro && styles.tierBadgeTextPro]}>
-                  {tier.toUpperCase()}
+                  {isPro ? "PRO" : trialActive ? "FREE TRIAL" : "FREE (EXPIRED)"}
                 </Text>
               </View>
             </View>
+            {!isPro && trialActive && (
+              <Text style={styles.trialDaysText}>
+                {trialDaysRemaining} day{trialDaysRemaining !== 1 ? "s" : ""} remaining
+              </Text>
+            )}
             {!isPro && (
               <TouchableOpacity
                 style={styles.upgradeBtn}
                 onPress={() => navigation.navigate("Paywall")}
               >
-                <Text style={styles.upgradeBtnText}>Upgrade to Pro</Text>
+                <Text style={styles.upgradeBtnText}>
+                  {trialActive ? "Upgrade to Pro" : "Subscribe to Continue"}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -296,6 +303,7 @@ const createStyles = (colors: ThemeColors) =>
     tierBadgePro: { backgroundColor: colors.primaryDark },
     tierBadgeText: { fontSize: 11, fontWeight: "700", color: colors.textMuted, letterSpacing: 1 },
     tierBadgeTextPro: { color: "#ffffff" },
+    trialDaysText: { fontSize: 12, color: colors.textMuted, marginBottom: 10 },
     upgradeBtn: {
       backgroundColor: colors.primaryDark, borderRadius: 10, paddingVertical: 12, alignItems: "center",
     },

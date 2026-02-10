@@ -98,4 +98,10 @@ export interface SubscriptionInfo {
     digestsToday: number;
     maxDigests: number;
   };
+  trial: {
+    isActive: boolean;
+    startedAt: string | null;
+    expiresAt: string | null;
+    daysRemaining: number;
+  };
 }

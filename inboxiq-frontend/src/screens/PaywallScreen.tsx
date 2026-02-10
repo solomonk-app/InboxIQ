@@ -24,7 +24,7 @@ export default function PaywallScreen() {
   const navigation = useNavigation();
   const colors = useColors();
   const styles = createStyles(colors);
-  const { currentOffering, purchase, restore, purchasing } = useSubscriptionStore();
+  const { currentOffering, purchase, restore, purchasing, trialActive, trialDaysRemaining } = useSubscriptionStore();
   const [restoring, setRestoring] = useState(false);
 
   // Get price from the offering, fallback to default
@@ -82,9 +82,15 @@ export default function PaywallScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.badge}>PRO</Text>
-          <Text style={styles.title}>Upgrade to Pro</Text>
+          <Text style={styles.title}>
+            {!trialActive ? "Trial Ended" : "Upgrade to Pro"}
+          </Text>
           <Text style={styles.subtitle}>
-            Unlock the full power of InboxIQ
+            {!trialActive
+              ? "Your free trial has expired. Subscribe to keep using InboxIQ."
+              : trialActive && trialDaysRemaining <= 3
+                ? `Only ${trialDaysRemaining} day${trialDaysRemaining !== 1 ? "s" : ""} left in your trial`
+                : "Unlock the full power of InboxIQ"}
           </Text>
         </View>
 
