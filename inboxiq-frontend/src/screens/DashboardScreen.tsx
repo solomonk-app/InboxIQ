@@ -77,14 +77,20 @@ export default function DashboardScreen() {
 
     setGenerating(true);
     try {
-      await digestsAPI.generate(frequency);
+      const { data } = await digestsAPI.generate(frequency);
+      // Refresh stats from the updated email_categories table
       await fetchStats();
       await refreshUsage();
+
+      if (data.digest?.totalEmails === 0) {
+        Alert.alert("No New Emails", "No new emails found for this period.");
+      }
     } catch (err: any) {
       if (err.response?.status === 403) {
         navigation.navigate("Paywall" as any);
       } else {
         console.error("Failed to generate:", err);
+        Alert.alert("Error", "Failed to generate digest. Please try again.");
       }
     }
     setGenerating(false);

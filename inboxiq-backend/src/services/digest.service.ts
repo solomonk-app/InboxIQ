@@ -15,7 +15,10 @@ export const generateDigest = async (
   const query = buildDateQuery(frequency);
   const emails = await fetchEmails(userId, 100, query);
 
+  console.log(`📨 Fetched ${emails.length} emails from Gmail for user ${userId}`);
+
   if (emails.length === 0) {
+    console.log(`⚠️ No emails found for user ${userId} with query: ${query}`);
     const emptySummary: DigestSummary = {
       totalEmails: 0,
       unreadCount: 0,
@@ -29,6 +32,7 @@ export const generateDigest = async (
 
   // 2. Categorize all emails with Gemini AI
   const categorized = await categorizeEmails(emails);
+  console.log(`🏷️ Categorized ${categorized.length} emails for user ${userId}`);
 
   // 3. Clear previous emails and store only the current batch
   const { error: deleteError } = await supabase
