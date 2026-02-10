@@ -30,7 +30,11 @@ export default function CategoryScreen() {
     setLoading(true);
     try {
       const { data } = await emailsAPI.getEmails(category, 50, filter);
-      setEmails(data.emails);
+      const sorted = [...data.emails].sort(
+        (a: StoredEmail, b: StoredEmail) =>
+          new Date(b.email_date).getTime() - new Date(a.email_date).getTime()
+      );
+      setEmails(sorted);
     } catch (err) {
       console.error("Failed to load emails:", err);
     }

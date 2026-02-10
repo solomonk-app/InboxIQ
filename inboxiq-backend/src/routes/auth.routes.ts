@@ -90,16 +90,16 @@ async function handleExchange(code: string, redirectUri: string, res: Response) 
     return;
   }
 
-  // Create default schedule preferences for new users
-  await supabase.from("schedule_preferences").upsert(
-    {
-      user_id: user.id,
-      frequency: "daily",
-      delivery_time: process.env.DEFAULT_DIGEST_TIME || "08:00",
-      is_active: true,
-    },
-    { onConflict: "user_id" }
-  );
+  // Create default schedule preferences only for new users (don't overwrite existing)
+  const { error: schedError } = await supabase.from("schedule_preferences").insert({
+    user_id: user.id,
+    frequency: "daily",
+    delivery_time: process.env.DEFAULT_DIGEST_TIME || "08:00",
+    is_active: true,
+  });
+  if (schedError && !schedError.code?.includes("23505")) {
+    console.error("Schedule preferences insert failed:", schedError);
+  }
 
   // Generate JWT for the mobile app
   const token = jwt.sign(
@@ -196,15 +196,16 @@ router.get("/google/callback", async (req: Request, res: Response) => {
       return;
     }
 
-    await supabase.from("schedule_preferences").upsert(
-      {
-        user_id: user.id,
-        frequency: "daily",
-        delivery_time: process.env.DEFAULT_DIGEST_TIME || "08:00",
-        is_active: true,
-      },
-      { onConflict: "user_id" }
-    );
+    // Create default schedule preferences only for new users (don't overwrite existing)
+    const { error: schedErr } = await supabase.from("schedule_preferences").insert({
+      user_id: user.id,
+      frequency: "daily",
+      delivery_time: process.env.DEFAULT_DIGEST_TIME || "08:00",
+      is_active: true,
+    });
+    if (schedErr && !schedErr.code?.includes("23505")) {
+      console.error("Schedule preferences insert failed:", schedErr);
+    }
 
     const jwtToken = jwt.sign(
       { userId: user.id, email: user.email },
