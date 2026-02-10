@@ -40,16 +40,10 @@ export const fetchEmails = async (
     console.log(`📬 Gmail returned ${messageIds.length} messages for user ${userId}`);
     if (messageIds.length === 0) return [];
 
-    // Fetch message metadata in parallel batches of 30
-    const emails: (ParsedEmail | null)[] = [];
-    const FETCH_BATCH = 30;
-    for (let i = 0; i < messageIds.length; i += FETCH_BATCH) {
-      const batch = messageIds.slice(i, i + FETCH_BATCH);
-      const batchResults = await Promise.all(
-        batch.map((msg) => fetchSingleEmail(gmail, msg.id!))
-      );
-      emails.push(...batchResults);
-    }
+    // Fetch full message details in parallel
+    const emails = await Promise.all(
+      messageIds.map((msg) => fetchSingleEmail(gmail, msg.id!))
+    );
 
     return emails.filter((e): e is ParsedEmail => e !== null);
   } catch (gmailErr: any) {
@@ -58,7 +52,7 @@ export const fetchEmails = async (
   }
 };
 
-// ─── Parse a single Gmail message (metadata only for speed) ─────
+// ─── Parse a single Gmail message ────────────────────────────────
 const fetchSingleEmail = async (
   gmail: gmail_v1.Gmail,
   messageId: string
@@ -67,8 +61,7 @@ const fetchSingleEmail = async (
     const res = await gmail.users.messages.get({
       userId: "me",
       id: messageId,
-      format: "metadata",
-      metadataHeaders: ["From", "To", "Subject", "Date"],
+      format: "full",
     });
 
     const headers = res.data.payload?.headers || [];
@@ -78,6 +71,8 @@ const fetchSingleEmail = async (
     const fromRaw = getHeader("From");
     const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
 
+    const body = extractBody(res.data.payload);
+
     return {
       messageId: res.data.id!,
       threadId: res.data.threadId!,
@@ -86,7 +81,7 @@ const fetchSingleEmail = async (
       to: getHeader("To"),
       subject: getHeader("Subject"),
       snippet: res.data.snippet || "",
-      body: res.data.snippet || "", // Use snippet instead of full body
+      body: body.substring(0, 2000), // Limit body size for AI processing
       date: getHeader("Date"),
       labels: res.data.labelIds || [],
       isRead: !res.data.labelIds?.includes("UNREAD"),
