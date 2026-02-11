@@ -24,7 +24,8 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
     res.json({ emails, count: emails.length });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch emails failed:", err);
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 
@@ -48,7 +49,8 @@ router.get("/stats", async (req: AuthRequest, res: Response) => {
 
     res.json({ stats });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch email stats failed:", err);
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 

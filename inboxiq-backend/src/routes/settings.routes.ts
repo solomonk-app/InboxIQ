@@ -34,7 +34,8 @@ router.get("/schedule", async (req: AuthRequest, res: Response) => {
 
     res.json(response);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch schedule settings failed:", err);
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 
@@ -73,7 +74,8 @@ router.put("/schedule", async (req: AuthRequest, res: Response) => {
     if (error) throw error;
     res.json({ schedule: data });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Update schedule settings failed:", err);
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 
@@ -89,7 +91,8 @@ router.get("/profile", async (req: AuthRequest, res: Response) => {
     if (error) throw error;
     res.json({ profile: data });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch profile failed:", err);
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 

@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
+import { safeEncryptToken } from "../utils/crypto";
 
 dotenv.config();
 
@@ -56,8 +57,8 @@ export const createGmailClient = (accessToken: string, refreshToken: string, use
       await supabase
         .from("users")
         .update({
-          google_access_token: tokens.access_token,
-          ...(tokens.refresh_token && { google_refresh_token: tokens.refresh_token }),
+          google_access_token: tokens.access_token ? safeEncryptToken(tokens.access_token) : undefined,
+          ...(tokens.refresh_token && { google_refresh_token: safeEncryptToken(tokens.refresh_token) }),
           ...(tokens.expiry_date && { token_expiry: new Date(tokens.expiry_date).toISOString() }),
         })
         .eq("id", userId);

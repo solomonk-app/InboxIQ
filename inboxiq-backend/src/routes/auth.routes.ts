@@ -4,6 +4,7 @@ import { google } from "googleapis";
 import { oauth2Client, getAuthUrl, GMAIL_SCOPES } from "../config/google";
 import { supabase } from "../config/supabase";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { safeEncryptToken, safeDecryptToken } from "../utils/crypto";
 
 const router = Router();
 
@@ -69,7 +70,7 @@ async function handleExchange(code: string, redirectUri: string, res: Response) 
     return;
   }
 
-  // Upsert user in Supabase
+  // Upsert user in Supabase (encrypt tokens before storing)
   const { data: user, error } = await supabase
     .from("users")
     .upsert(
@@ -77,8 +78,8 @@ async function handleExchange(code: string, redirectUri: string, res: Response) 
         email: profile.email,
         name: profile.name || "",
         avatar_url: profile.picture || "",
-        google_access_token: tokens.access_token,
-        google_refresh_token: tokens.refresh_token,
+        google_access_token: tokens.access_token ? safeEncryptToken(tokens.access_token) : null,
+        google_refresh_token: tokens.refresh_token ? safeEncryptToken(tokens.refresh_token) : null,
         token_expiry: tokens.expiry_date
           ? new Date(tokens.expiry_date).toISOString()
           : null,
@@ -183,8 +184,8 @@ router.get("/google/callback", async (req: Request, res: Response) => {
           email: profile.email,
           name: profile.name || "",
           avatar_url: profile.picture || "",
-          google_access_token: tokens.access_token,
-          google_refresh_token: tokens.refresh_token,
+          google_access_token: tokens.access_token ? safeEncryptToken(tokens.access_token) : null,
+          google_refresh_token: tokens.refresh_token ? safeEncryptToken(tokens.refresh_token) : null,
           token_expiry: tokens.expiry_date
             ? new Date(tokens.expiry_date).toISOString()
             : null,
@@ -227,12 +228,19 @@ router.get("/google/callback", async (req: Request, res: Response) => {
     // 3. In development, use EXPO_DEV_URL if set (for Expo Go)
     let redirectTarget: string;
     // State is base64-encoded to avoid URL parsing issues with exp:// scheme
+    const ALLOWED_SCHEMES = ["inboxiq://", "exp://", "intent://"];
     let deepLinkBase: string | null = null;
     if (typeof state === "string" && state) {
       try {
-        deepLinkBase = Buffer.from(state, "base64").toString("utf-8");
+        const decoded = Buffer.from(state, "base64").toString("utf-8");
+        if (ALLOWED_SCHEMES.some((scheme) => decoded.startsWith(scheme))) {
+          deepLinkBase = decoded;
+        } else {
+          console.warn("OAuth state contained disallowed scheme, ignoring:", decoded.split("/")[0]);
+        }
       } catch {
-        deepLinkBase = state; // Fallback: use raw state if not base64
+        // Invalid base64 — ignore state entirely
+        console.warn("OAuth state was not valid base64, ignoring");
       }
     }
 
@@ -283,7 +291,7 @@ window.location.href = target;
 </head><body>
 <div>
 <p style="font-size:20px">Sign-in failed</p>
-<p class="err">${(err?.message || String(err)).replace(/"/g, '&quot;')}</p>
+<p class="err">Something went wrong during sign-in.</p>
 <p style="color:#888">Please go back and try again.</p>
 </div>
 </body></html>`);
@@ -325,8 +333,9 @@ router.post("/logout", authenticate, async (req: AuthRequest, res: Response) => 
     // Revoke Google token if it exists
     if (user?.google_access_token) {
       try {
+        const plainToken = safeDecryptToken(user.google_access_token);
         await fetch(
-          `https://oauth2.googleapis.com/revoke?token=${user.google_access_token}`,
+          `https://oauth2.googleapis.com/revoke?token=${plainToken}`,
           { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" } }
         );
       } catch {
@@ -367,8 +376,9 @@ router.delete("/account", authenticate, async (req: AuthRequest, res: Response) 
 
     if (user?.google_access_token) {
       try {
+        const plainToken = safeDecryptToken(user.google_access_token);
         await fetch(
-          `https://oauth2.googleapis.com/revoke?token=${user.google_access_token}`,
+          `https://oauth2.googleapis.com/revoke?token=${plainToken}`,
           { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" } }
         );
       } catch {

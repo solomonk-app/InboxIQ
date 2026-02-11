@@ -79,7 +79,8 @@ router.get("/latest", async (req: AuthRequest, res: Response) => {
     }
     res.json({ digest });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch latest digest failed:", err);
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 
@@ -91,7 +92,8 @@ router.get("/history", async (req: AuthRequest, res: Response) => {
     const history = await getDigestHistory(req.userId!, limit);
     res.json({ history });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch digest history failed:", err);
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 
@@ -146,7 +148,7 @@ router.post("/send-email", async (req: AuthRequest, res: Response) => {
     res.json({ success: true, message: `Digest sent to ${user.email}` });
   } catch (err: any) {
     console.error("Send digest email failed:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 

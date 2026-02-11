@@ -8,6 +8,24 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// ─── Startup Env Validation ─────────────────────────────────────
+const REQUIRED_ENV_VARS = [
+  "JWT_SECRET",
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_KEY",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+] as const;
+
+const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+if (missing.length > 0) {
+  throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+}
+
+if (process.env.JWT_SECRET!.length < 32) {
+  throw new Error("JWT_SECRET must be at least 32 characters long");
+}
+
 import authRoutes from "./routes/auth.routes";
 import emailRoutes from "./routes/email.routes";
 import digestRoutes from "./routes/digest.routes";

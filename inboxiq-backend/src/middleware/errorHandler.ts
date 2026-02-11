@@ -22,8 +22,9 @@ export const errorHandler = (
     console.error(err.stack);
   }
 
+  const isProduction = process.env.NODE_ENV === "production";
   res.status(statusCode).json({
-    error: err.message,
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+    error: isProduction ? "An internal error occurred" : err.message,
+    ...(!isProduction && { stack: err.stack }),
   });
 };

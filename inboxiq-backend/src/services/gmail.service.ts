@@ -2,6 +2,7 @@ import { gmail_v1 } from "googleapis";
 import { createGmailClient } from "../config/google";
 import { supabase } from "../config/supabase";
 import { ParsedEmail, DigestFrequency } from "../types";
+import { safeDecryptToken } from "../utils/crypto";
 
 // ─── Create Gmail client for a user ─────────────────────────────
 const getGmailClient = async (userId: string) => {
@@ -18,7 +19,9 @@ const getGmailClient = async (userId: string) => {
 
   console.log(`🔑 Tokens for user ${userId}: access=${user.google_access_token ? "present" : "MISSING"}, refresh=${user.google_refresh_token ? "present" : "MISSING"}`);
 
-  return createGmailClient(user.google_access_token, user.google_refresh_token, userId);
+  const accessToken = safeDecryptToken(user.google_access_token);
+  const refreshToken = safeDecryptToken(user.google_refresh_token);
+  return createGmailClient(accessToken, refreshToken, userId);
 };
 
 // ─── List message IDs from Gmail ────────────────────────────────

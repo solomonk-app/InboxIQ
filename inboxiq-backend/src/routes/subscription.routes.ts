@@ -10,7 +10,8 @@ router.get("/", authenticate, async (req: AuthRequest, res: Response) => {
     const info = await getSubscriptionInfo(req.userId!);
     res.json({ subscription: info });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch subscription info failed:", err);
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 
@@ -22,7 +23,14 @@ router.post("/webhook", async (req: Request, res: Response) => {
     const webhookSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
     const authHeader = req.headers.authorization;
 
-    if (webhookSecret && authHeader !== `Bearer ${webhookSecret}`) {
+    // In production, webhook secret is required — reject if unset
+    if (!webhookSecret) {
+      console.error("REVENUECAT_WEBHOOK_SECRET is not configured");
+      res.status(500).json({ error: "Webhook not configured" });
+      return;
+    }
+
+    if (authHeader !== `Bearer ${webhookSecret}`) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
@@ -74,7 +82,8 @@ router.post("/upgrade", authenticate, async (req: AuthRequest, res: Response) =>
     const info = await getSubscriptionInfo(req.userId!);
     res.json({ subscription: info });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("Subscription upgrade failed:", err);
+    res.status(500).json({ error: "An internal error occurred" });
   }
 });
 
