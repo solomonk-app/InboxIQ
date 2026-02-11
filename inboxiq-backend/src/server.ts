@@ -36,7 +36,20 @@ if (isProd) {
 app.use(
   helmet({
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    contentSecurityPolicy: false, // Configured per-route where HTML is served
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
+        imgSrc: ["'self'", "data:"],
+        fontSrc: ["'self'"],
+        connectSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        baseUri: ["'self'"],
+        objectSrc: ["'none'"],
+      },
+    },
     frameguard: { action: "deny" },
   })
 );
@@ -112,6 +125,11 @@ if (process.env.NODE_ENV !== "production") {
     });
   });
 }
+
+// ─── 404 Handler ────────────────────────────────────────────────
+app.use((_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
 
 // ─── Global Error Handler ────────────────────────────────────────
 app.use(errorHandler);

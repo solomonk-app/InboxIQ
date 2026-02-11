@@ -1,0 +1,53 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #e0e0e0; line-height: 1.7; }
+
+/* Hero */
+.hero { text-align: center; padding: 80px 20px 60px; }
+.logo { font-size: 48px; margin-bottom: 12px; }
+.hero h1 { font-size: 42px; font-weight: 800; color: #fff; margin-bottom: 12px; }
+.hero h1 span { color: #818cf8; }
+.hero p { font-size: 18px; color: #9ca3af; max-width: 540px; margin: 0 auto 36px; }
+.badges { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.badge { display: inline-flex; align-items: center; gap: 8px; background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 12px; padding: 12px 24px; color: #e0e0e0; font-size: 15px; font-weight: 600; text-decoration: none; transition: background 0.2s; }
+.badge:hover { background: #252545; text-decoration: none; }
+.badge-icon { font-size: 20px; }
+
+/* Features */
+.features { max-width: 900px; margin: 0 auto; padding: 40px 20px 60px; }
+.features h2 { text-align: center; font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 40px; }
+.feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+.feature-card { background: #12121a; border: 1px solid #1a1a2e; border-radius: 16px; padding: 28px; }
+.feature-icon { font-size: 32px; margin-bottom: 14px; }
+.feature-card h3 { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.feature-card p { font-size: 14px; color: #9ca3af; margin-bottom: 0; }
+
+/* How it works */
+.how { max-width: 720px; margin: 0 auto; padding: 40px 20px 60px; }
+.how h2 { text-align: center; font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 40px; }
+.steps { display: flex; flex-direction: column; gap: 24px; }
+.step { display: flex; align-items: flex-start; gap: 20px; }
+.step-number { flex-shrink: 0; width: 40px; height: 40px; border-radius: 20px; background: #818cf8; color: #fff; font-size: 18px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.step-text h3 { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.step-text p { font-size: 14px; color: #9ca3af; margin-bottom: 0; }
+
+/* Pricing */
+.pricing { max-width: 720px; margin: 0 auto; padding: 40px 20px 60px; }
+.pricing h2 { text-align: center; font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 40px; }
+.pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 600px) { .pricing-grid { grid-template-columns: 1fr; } }
+.plan { background: #12121a; border: 1px solid #1a1a2e; border-radius: 16px; padding: 28px; }
+.plan.pro { border-color: #818cf8; }
+.plan-name { font-size: 13px; font-weight: 700; color: #9ca3af; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 8px; }
+.plan-price { font-size: 36px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+.plan-price span { font-size: 15px; font-weight: 500; color: #6b7280; }
+.plan-desc { font-size: 14px; color: #9ca3af; margin-bottom: 20px; }
+.plan ul { list-style: none; padding: 0; }
+.plan li { font-size: 14px; color: #b0b0b0; padding: 6px 0; }
+.plan li::before { content: "\2713  "; color: #818cf8; font-weight: 700; }
+
+/* Footer */
+.footer { text-align: center; padding: 40px 20px; border-top: 1px solid #1a1a2e; }
+.footer-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+.footer-links a { color: #818cf8; text-decoration: none; font-size: 14px; }
+.footer-links a:hover { text-decoration: underline; }
+.footer p { font-size: 13px; color: #4b5563; }

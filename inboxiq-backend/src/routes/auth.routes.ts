@@ -9,7 +9,7 @@ const router = Router();
 
 // CSP for HTML redirect pages that need meta-refresh and inline scripts
 const REDIRECT_CSP =
-  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:;";
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; form-action 'none';";
 
 // ─── GET /api/auth/google ────────────────────────────────────────
 // Returns the Google OAuth consent URL for the mobile app to open.
