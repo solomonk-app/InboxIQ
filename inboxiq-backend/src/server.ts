@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -17,20 +18,67 @@ import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProd = process.env.NODE_ENV === "production";
 
 // ─── Middleware ───────────────────────────────────────────────────
 app.set("trust proxy", 1); // Trust first proxy (Render's load balancer)
-app.use(helmet());
+
+// HTTPS enforcement in production
+if (isProd) {
+  app.use((req, res, next) => {
+    if (req.header("x-forwarded-proto") !== "https") {
+      return res.redirect(`https://${req.header("host")}${req.url}`);
+    }
+    next();
+  });
+}
+
+app.use(
+  helmet({
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    contentSecurityPolicy: false, // Configured per-route where HTML is served
+    frameguard: { action: "deny" },
+  })
+);
 app.use(
   cors({
-    origin: process.env.NODE_ENV === "production"
+    origin: isProd
       ? ["https://inboxiq-lmfv.onrender.com", "https://getinboxiq.app"]
-      : true,
+      : ["http://localhost:8081", "http://localhost:3000", "http://localhost:19006"],
     credentials: true,
   })
 );
 app.use(express.json({ limit: "10mb" }));
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(morgan(isProd ? "combined" : "dev"));
+
+// ─── Rate Limiting ──────────────────────────────────────────────
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many auth attempts, please try again later." },
+});
+
+const digestLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many digest requests, please slow down." },
+});
+
+app.use("/api/", globalLimiter);
+app.use("/api/auth/", authLimiter);
+app.use("/api/digests/", digestLimiter);
 
 // ─── Routes ──────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);

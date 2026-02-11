@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { z } from "zod";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import {
   generateDigest,
@@ -17,18 +18,26 @@ router.use(authenticate);
 
 const VALID_FREQUENCIES: DigestFrequency[] = ["daily", "weekly", "biweekly", "monthly"];
 
+const generateSchema = z.object({
+  frequency: z.enum(["daily", "weekly", "biweekly", "monthly"]).default("daily"),
+});
+
+const historySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+});
+
 // ─── POST /api/digests/generate ──────────────────────────────────
 // Manually trigger a digest (from the app's "Refresh" button)
 router.post("/generate", async (req: AuthRequest, res: Response) => {
   try {
-    const { frequency = "daily" } = req.body;
-
-    if (!VALID_FREQUENCIES.includes(frequency)) {
+    const parsed = generateSchema.safeParse(req.body);
+    if (!parsed.success) {
       res.status(400).json({
         error: `Invalid frequency. Use: ${VALID_FREQUENCIES.join(", ")}`,
       });
       return;
     }
+    const { frequency } = parsed.data;
 
     // Check digest quota for free tier
     const quota = await checkDigestQuota(req.userId!);
@@ -55,8 +64,8 @@ router.post("/generate", async (req: AuthRequest, res: Response) => {
 
     res.json({ digest });
   } catch (err: any) {
-    console.error("❌ Digest generation failed:", err.message, err.stack);
-    res.status(500).json({ error: err.message });
+    console.error("Digest generation failed:", err.message);
+    res.status(500).json({ error: "Digest generation failed" });
   }
 });
 
@@ -77,7 +86,8 @@ router.get("/latest", async (req: AuthRequest, res: Response) => {
 // ─── GET /api/digests/history?limit=10 ───────────────────────────
 router.get("/history", async (req: AuthRequest, res: Response) => {
   try {
-    const limit = parseInt(req.query.limit as string) || 10;
+    const parsed = historySchema.safeParse(req.query);
+    const limit = parsed.success ? parsed.data.limit : 10;
     const history = await getDigestHistory(req.userId!, limit);
     res.json({ history });
   } catch (err: any) {

@@ -3,8 +3,13 @@ import jwt from "jsonwebtoken";
 import { google } from "googleapis";
 import { oauth2Client, getAuthUrl, GMAIL_SCOPES } from "../config/google";
 import { supabase } from "../config/supabase";
+import { authenticate, AuthRequest } from "../middleware/auth";
 
 const router = Router();
+
+// CSP for HTML redirect pages that need meta-refresh and inline scripts
+const REDIRECT_CSP =
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:;";
 
 // ─── GET /api/auth/google ────────────────────────────────────────
 // Returns the Google OAuth consent URL for the mobile app to open.
@@ -26,7 +31,7 @@ router.get("/google", (req: Request, res: Response) => {
 router.get("/google/start", (req: Request, res: Response) => {
   const deepLink = req.query.deep_link as string | undefined;
   const url = getAuthUrl(undefined, deepLink);
-  res.removeHeader("Content-Security-Policy");
+  res.setHeader("Content-Security-Policy", REDIRECT_CSP);
   res.setHeader("Content-Type", "text/html");
   res.send(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
@@ -251,7 +256,7 @@ router.get("/google/callback", async (req: Request, res: Response) => {
       : redirectTarget;
 
     // Use an HTML page with redirect methods.
-    res.removeHeader("Content-Security-Policy");
+    res.setHeader("Content-Security-Policy", REDIRECT_CSP);
     res.setHeader("Content-Type", "text/html");
     res.send(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
@@ -270,7 +275,7 @@ window.location.href = target;
 </body></html>`);
   } catch (err: any) {
     console.error("OAuth callback error:", err);
-    res.removeHeader("Content-Security-Policy");
+    res.setHeader("Content-Security-Policy", REDIRECT_CSP);
     res.setHeader("Content-Type", "text/html");
     res.send(`<!DOCTYPE html><html><head>
 <meta charset="utf-8"><title>InboxIQ - Error</title>
@@ -286,18 +291,18 @@ window.location.href = target;
 });
 
 // ─── POST /api/auth/push-token ───────────────────────────────────
-router.post("/push-token", async (req: Request, res: Response) => {
-  const { userId, pushToken } = req.body;
+router.post("/push-token", authenticate, async (req: AuthRequest, res: Response) => {
+  const { pushToken } = req.body;
 
-  if (!userId || !pushToken) {
-    res.status(400).json({ error: "Missing userId or pushToken" });
+  if (!pushToken) {
+    res.status(400).json({ error: "Missing pushToken" });
     return;
   }
 
   const { error } = await supabase
     .from("users")
     .update({ expo_push_token: pushToken })
-    .eq("id", userId);
+    .eq("id", req.userId!);
 
   if (error) {
     res.status(500).json({ error: "Failed to save push token" });
@@ -305,6 +310,84 @@ router.post("/push-token", async (req: Request, res: Response) => {
   }
 
   res.json({ success: true });
+});
+
+// ─── POST /api/auth/logout ──────────────────────────────────────
+// Revokes Google OAuth tokens and clears them from DB
+router.post("/logout", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { data: user } = await supabase
+      .from("users")
+      .select("google_access_token")
+      .eq("id", req.userId!)
+      .single();
+
+    // Revoke Google token if it exists
+    if (user?.google_access_token) {
+      try {
+        await fetch(
+          `https://oauth2.googleapis.com/revoke?token=${user.google_access_token}`,
+          { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+        );
+      } catch {
+        // Token may already be expired/revoked — continue
+      }
+    }
+
+    // Clear tokens from DB
+    await supabase
+      .from("users")
+      .update({
+        google_access_token: null,
+        google_refresh_token: null,
+        token_expiry: null,
+        expo_push_token: null,
+      })
+      .eq("id", req.userId!);
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Logout error:", err);
+    res.status(500).json({ error: "Logout failed" });
+  }
+});
+
+// ─── DELETE /api/auth/account ───────────────────────────────────
+// Deletes user and all associated data (GDPR right to erasure)
+router.delete("/account", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+
+    // Revoke Google token first
+    const { data: user } = await supabase
+      .from("users")
+      .select("google_access_token")
+      .eq("id", userId)
+      .single();
+
+    if (user?.google_access_token) {
+      try {
+        await fetch(
+          `https://oauth2.googleapis.com/revoke?token=${user.google_access_token}`,
+          { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+        );
+      } catch {
+        // Continue even if revocation fails
+      }
+    }
+
+    // Delete all user data (order matters for foreign keys)
+    await supabase.from("usage_tracking").delete().eq("user_id", userId);
+    await supabase.from("email_categories").delete().eq("user_id", userId);
+    await supabase.from("digest_history").delete().eq("user_id", userId);
+    await supabase.from("schedule_preferences").delete().eq("user_id", userId);
+    await supabase.from("users").delete().eq("id", userId);
+
+    res.json({ success: true, message: "Account and all data deleted" });
+  } catch (err: any) {
+    console.error("Account deletion error:", err);
+    res.status(500).json({ error: "Failed to delete account" });
+  }
 });
 
 export default router;

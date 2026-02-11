@@ -1,10 +1,18 @@
 import { Router, Response } from "express";
+import { z } from "zod";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { supabase } from "../config/supabase";
 import { getUserTier } from "../services/subscription.service";
 
 const router = Router();
 router.use(authenticate);
+
+const scheduleUpdateSchema = z.object({
+  frequency: z.enum(["daily", "weekly", "biweekly", "monthly"]).optional(),
+  delivery_time: z.string().regex(/^\d{2}:\d{2}$/, "Use HH:MM format").optional(),
+  is_active: z.boolean().optional(),
+  timezone: z.string().max(100).optional(),
+});
 
 // ─── GET /api/settings/schedule ──────────────────────────────────
 router.get("/schedule", async (req: AuthRequest, res: Response) => {
@@ -33,18 +41,13 @@ router.get("/schedule", async (req: AuthRequest, res: Response) => {
 // ─── PUT /api/settings/schedule ──────────────────────────────────
 router.put("/schedule", async (req: AuthRequest, res: Response) => {
   try {
-    const { frequency, delivery_time, is_active, timezone } = req.body;
-
-    const validFreqs = ["daily", "weekly", "biweekly", "monthly"];
-    if (frequency && !validFreqs.includes(frequency)) {
-      res.status(400).json({ error: "Invalid frequency" });
+    const parsed = scheduleUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid input" });
       return;
     }
 
-    if (delivery_time && !/^\d{2}:\d{2}$/.test(delivery_time)) {
-      res.status(400).json({ error: "Invalid time format. Use HH:MM" });
-      return;
-    }
+    const { frequency, delivery_time, is_active, timezone } = parsed.data;
 
     // Build partial update object
     const updates: Record<string, any> = {};

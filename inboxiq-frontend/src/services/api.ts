@@ -61,8 +61,12 @@ export const authAPI = {
   exchangeCode: (code: string, redirectUri: string) =>
     api.post("/auth/google/exchange", { code, redirect_uri: redirectUri }),
 
-  registerPushToken: (userId: string, pushToken: string) =>
-    api.post("/auth/push-token", { userId, pushToken }),
+  registerPushToken: (_userId: string, pushToken: string) =>
+    api.post("/auth/push-token", { pushToken }),
+
+  logout: () => api.post("/auth/logout"),
+
+  deleteAccount: () => api.delete("/auth/account"),
 };
 
 // ─── Email Endpoints ─────────────────────────────────────────────
