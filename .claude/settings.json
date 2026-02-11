@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$PROJECT_DIR/inboxiq-backend\" && npx tsc --noEmit --pretty 2>&1 | tail -20 || true"
+          }
+        ]
+      }
+    ]
+  }
+}
