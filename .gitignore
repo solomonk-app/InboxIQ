@@ -1,3 +1,7 @@
 .DS_Store
 *.log
 .env
+
+# Audit reports
+security-audit-*.json
+zap-report.html
