@@ -7,6 +7,7 @@ import {
   Switch,
   StyleSheet,
   Alert,
+  Linking,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { settingsAPI } from "../services/api";
@@ -252,6 +253,22 @@ export default function SettingsScreen() {
         <Text style={styles.logoutText}>Sign Out</Text>
       </TouchableOpacity>
 
+      <View style={styles.legalLinks}>
+        <Text
+          style={styles.legalLink}
+          onPress={() => Linking.openURL("https://getinboxiq.app/privacy")}
+        >
+          Privacy Policy
+        </Text>
+        <Text style={styles.legalSeparator}>•</Text>
+        <Text
+          style={styles.legalLink}
+          onPress={() => Linking.openURL("https://getinboxiq.app/terms")}
+        >
+          Terms of Use
+        </Text>
+      </View>
+
       <Text style={styles.version}>InboxIQ v1.0.0 • Powered by Gemini AI</Text>
     </ScrollView>
   );
@@ -359,5 +376,21 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: "center", marginTop: 12,
     },
     logoutText: { fontSize: 15, fontWeight: "600", color: colors.danger },
-    version: { fontSize: 11, color: colors.textDim, textAlign: "center", marginTop: 24 },
+    legalLinks: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 24,
+    },
+    legalLink: {
+      fontSize: 13,
+      color: colors.primary,
+      textDecorationLine: "underline",
+    },
+    legalSeparator: {
+      fontSize: 13,
+      color: colors.textDim,
+      marginHorizontal: 8,
+    },
+    version: { fontSize: 11, color: colors.textDim, textAlign: "center", marginTop: 12 },
   });

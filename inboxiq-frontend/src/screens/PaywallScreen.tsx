@@ -7,6 +7,7 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useColors } from "../hooks/useColors";
@@ -140,9 +141,26 @@ export default function PaywallScreen() {
         </TouchableOpacity>
 
         <Text style={styles.terms}>
+          InboxIQ Pro — Monthly subscription at {priceString}/month.{" "}
           Payment will be charged to your {currentOffering ? "account" : "Apple ID or Google Play account"} at confirmation of purchase.
           Subscription automatically renews unless cancelled at least 24 hours before the end of the current period.
         </Text>
+
+        <View style={styles.legalLinks}>
+          <Text
+            style={styles.legalLink}
+            onPress={() => Linking.openURL("https://getinboxiq.app/privacy")}
+          >
+            Privacy Policy
+          </Text>
+          <Text style={styles.legalSeparator}>•</Text>
+          <Text
+            style={styles.legalLink}
+            onPress={() => Linking.openURL("https://getinboxiq.app/terms")}
+          >
+            Terms of Use
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -241,5 +259,21 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textDim,
       textAlign: "center",
       lineHeight: 15,
+    },
+    legalLinks: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 12,
+    },
+    legalLink: {
+      fontSize: 12,
+      color: colors.primary,
+      textDecorationLine: "underline",
+    },
+    legalSeparator: {
+      fontSize: 12,
+      color: colors.textDim,
+      marginHorizontal: 8,
     },
   });
