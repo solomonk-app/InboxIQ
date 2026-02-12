@@ -5,6 +5,7 @@ import { oauth2Client, getAuthUrl, GMAIL_SCOPES } from "../config/google";
 import { supabase } from "../config/supabase";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { safeEncryptToken, safeDecryptToken } from "../utils/crypto";
+import { verifyAppleIdentityToken } from "../config/apple";
 
 const router = Router();
 
@@ -295,6 +296,137 @@ window.location.href = target;
 <p style="color:#888">Please go back and try again.</p>
 </div>
 </body></html>`);
+  }
+});
+
+// ─── POST /api/auth/apple ────────────────────────────────────────
+// Native Apple Sign-In: verifies the identity token from iOS and returns a JWT.
+router.post("/apple", async (req: Request, res: Response) => {
+  const { identityToken, fullName } = req.body as {
+    identityToken?: string;
+    fullName?: { givenName?: string; familyName?: string } | null;
+  };
+
+  if (!identityToken) {
+    res.status(400).json({ error: "Missing identityToken" });
+    return;
+  }
+
+  try {
+    // Verify token against Apple's JWKS
+    const applePayload = await verifyAppleIdentityToken(identityToken);
+    const { sub: appleUserId, email } = applePayload;
+
+    if (!email) {
+      res.status(400).json({ error: "Unable to retrieve email from Apple" });
+      return;
+    }
+
+    // Look up existing user by apple_user_id first, then by email
+    let { data: user } = await supabase
+      .from("users")
+      .select()
+      .eq("apple_user_id", appleUserId)
+      .single();
+
+    if (!user) {
+      const { data: emailUser } = await supabase
+        .from("users")
+        .select()
+        .eq("email", email)
+        .single();
+      user = emailUser;
+    }
+
+    // Build name from fullName (Apple only sends this on first sign-in)
+    const appleName =
+      fullName?.givenName || fullName?.familyName
+        ? [fullName.givenName, fullName.familyName].filter(Boolean).join(" ")
+        : null;
+
+    if (user) {
+      // Existing user — link apple_user_id and update last_login
+      const updates: Record<string, any> = {
+        apple_user_id: appleUserId,
+        last_login: new Date().toISOString(),
+      };
+      // Only update name if we got one from Apple and user has no name
+      if (appleName && !user.name) {
+        updates.name = appleName;
+      }
+
+      const { data: updated, error } = await supabase
+        .from("users")
+        .update(updates)
+        .eq("id", user.id)
+        .select()
+        .single();
+
+      if (error || !updated) {
+        console.error("Apple user update failed:", error);
+        res.status(500).json({ error: "Failed to update user" });
+        return;
+      }
+      user = updated;
+    } else {
+      // New user — insert with Apple info, null Google tokens
+      const { data: newUser, error } = await supabase
+        .from("users")
+        .insert({
+          email,
+          name: appleName || "",
+          avatar_url: "",
+          apple_user_id: appleUserId,
+          google_access_token: null,
+          google_refresh_token: null,
+          token_expiry: null,
+          last_login: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error || !newUser) {
+        console.error("Apple user insert failed:", error);
+        res.status(500).json({ error: "Failed to create user" });
+        return;
+      }
+      user = newUser;
+    }
+
+    // Create default schedule preferences (ignore duplicate)
+    const { error: schedError } = await supabase.from("schedule_preferences").insert({
+      user_id: user.id,
+      frequency: "daily",
+      delivery_time: process.env.DEFAULT_DIGEST_TIME || "08:00",
+      is_active: true,
+    });
+    if (schedError && !schedError.code?.includes("23505")) {
+      console.error("Schedule preferences insert failed:", schedError);
+    }
+
+    // Generate JWT (same payload as Google flow)
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET!,
+      { expiresIn: (process.env.JWT_EXPIRES_IN || "7d") as string & jwt.SignOptions["expiresIn"] }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatar_url,
+      },
+    });
+  } catch (err: any) {
+    console.error("Apple auth error:", err);
+    if (err.code === "ERR_JWT_EXPIRED" || err.code === "ERR_JWS_SIGNATURE_VERIFICATION_FAILED") {
+      res.status(401).json({ error: "Invalid Apple identity token" });
+      return;
+    }
+    res.status(500).json({ error: "Authentication failed" });
   }
 });
 

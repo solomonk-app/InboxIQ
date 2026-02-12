@@ -6,7 +6,9 @@ import {
   StyleSheet,
   Dimensions,
   Alert,
+  Platform,
 } from "react-native";
+import * as AppleAuthentication from "expo-apple-authentication";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -24,6 +26,7 @@ import * as WebBrowser from "expo-web-browser";
 import { authAPI, API_URL } from "../services/api";
 import { useAuthStore } from "../hooks/useAuthStore";
 import { useColors } from "../hooks/useColors";
+import { useThemeStore } from "../hooks/useThemeStore";
 import { ThemeColors } from "../constants/theme";
 
 const { width } = Dimensions.get("window");
@@ -252,6 +255,7 @@ const logoStyles = StyleSheet.create({
 export default function LoginScreen() {
   const { setAuth } = useAuthStore();
   const colors = useColors();
+  const { resolvedMode } = useThemeStore();
   const styles = createStyles(colors);
 
   const brandFade = useSharedValue(0);
@@ -355,6 +359,49 @@ export default function LoginScreen() {
     }
   };
 
+  const handleAppleSignIn = async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        Alert.alert("Sign In Error", "No identity token received from Apple.");
+        return;
+      }
+
+      const { data } = await authAPI.appleSignIn(
+        credential.identityToken,
+        credential.fullName
+          ? {
+              givenName: credential.fullName.givenName ?? undefined,
+              familyName: credential.fullName.familyName ?? undefined,
+            }
+          : null
+      );
+
+      await setAuth(
+        {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.name || "User",
+          avatarUrl: data.user.avatarUrl || "",
+        },
+        data.token
+      );
+    } catch (error: any) {
+      // User cancelled the dialog — ignore silently
+      if (error.code === "ERR_REQUEST_CANCELED") return;
+      Alert.alert(
+        "Sign In Error",
+        `${error?.message || String(error)}\n\nCode: ${error?.code || "none"}\nName: ${error?.name || "unknown"}`
+      );
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Ambient orbs */}
@@ -392,6 +439,22 @@ export default function LoginScreen() {
           <Text style={styles.googleText}>Continue with Google</Text>
         </TouchableOpacity>
       </Animated.View>
+
+      {Platform.OS === "ios" && (
+        <Animated.View style={[buttonStyle, { marginTop: 12 }]}>
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+            buttonStyle={
+              resolvedMode === "dark"
+                ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+            }
+            cornerRadius={14}
+            style={{ width: width - 64, height: 52 }}
+            onPress={handleAppleSignIn}
+          />
+        </Animated.View>
+      )}
 
       <Animated.View style={buttonStyle}>
         <Text style={styles.disclaimer}>

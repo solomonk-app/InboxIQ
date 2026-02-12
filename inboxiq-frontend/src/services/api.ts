@@ -64,6 +64,9 @@ export const authAPI = {
   registerPushToken: (_userId: string, pushToken: string) =>
     api.post("/auth/push-token", { pushToken }),
 
+  appleSignIn: (identityToken: string, fullName?: { givenName?: string; familyName?: string } | null) =>
+    api.post("/auth/apple", { identityToken, fullName }),
+
   logout: () => api.post("/auth/logout"),
 
   deleteAccount: () => api.delete("/auth/account"),

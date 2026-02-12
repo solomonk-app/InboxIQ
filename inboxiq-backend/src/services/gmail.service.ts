@@ -19,6 +19,10 @@ const getGmailClient = async (userId: string) => {
 
   console.log(`🔑 Tokens for user ${userId}: access=${user.google_access_token ? "present" : "MISSING"}, refresh=${user.google_refresh_token ? "present" : "MISSING"}`);
 
+  if (!user.google_access_token || !user.google_refresh_token) {
+    throw new Error("Google account not connected. Please sign in with Google to use Gmail features.");
+  }
+
   const accessToken = safeDecryptToken(user.google_access_token);
   const refreshToken = safeDecryptToken(user.google_refresh_token);
   return createGmailClient(accessToken, refreshToken, userId);
