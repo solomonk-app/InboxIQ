@@ -24,9 +24,19 @@ const api: AxiosInstance = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// In-memory token fallback for environments where SecureStore is unavailable (e.g. simulators)
+let _memoryToken: string | null = null;
+export const setMemoryToken = (token: string | null) => { _memoryToken = token; };
+
 // Attach JWT token to every outgoing request
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync("auth_token");
+  let token: string | null = null;
+  try {
+    token = await SecureStore.getItemAsync("auth_token");
+  } catch {
+    // SecureStore unavailable (simulator) — use in-memory fallback
+  }
+  if (!token) token = _memoryToken;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -38,8 +48,13 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      await SecureStore.deleteItemAsync("auth_token");
-      await SecureStore.deleteItemAsync("user_data");
+      try {
+        await SecureStore.deleteItemAsync("auth_token");
+        await SecureStore.deleteItemAsync("user_data");
+      } catch {
+        // SecureStore unavailable — ignore
+      }
+      _memoryToken = null;
       // The auth store listener will redirect to Login
     }
     return Promise.reject(error);

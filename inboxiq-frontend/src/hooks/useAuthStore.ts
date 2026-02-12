@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
 import { User } from "../types";
+import { setMemoryToken } from "../services/api";
 
 function decodeJwtPayload(token: string): Record<string, any> {
   try {
@@ -40,14 +41,25 @@ export const useAuthStore = create<AuthState>((set) => ({
       name: user.name || "User",
       avatarUrl: user.avatarUrl || "",
     };
-    await SecureStore.setItemAsync("auth_token", token);
-    await SecureStore.setItemAsync("user_data", JSON.stringify(fullUser));
+    setMemoryToken(token);
+    try {
+      await SecureStore.setItemAsync("auth_token", token);
+      await SecureStore.setItemAsync("user_data", JSON.stringify(fullUser));
+    } catch (e) {
+      // SecureStore can fail on simulators — continue with in-memory auth
+      console.warn("SecureStore write failed:", e);
+    }
     set({ user: fullUser, token, isAuthenticated: true, isLoading: false, isNewLogin: true });
   },
 
   logout: async () => {
-    await SecureStore.deleteItemAsync("auth_token");
-    await SecureStore.deleteItemAsync("user_data");
+    setMemoryToken(null);
+    try {
+      await SecureStore.deleteItemAsync("auth_token");
+      await SecureStore.deleteItemAsync("user_data");
+    } catch {
+      // SecureStore unavailable — ignore
+    }
     set({ user: null, token: null, isAuthenticated: false, isLoading: false, isNewLogin: false });
   },
 

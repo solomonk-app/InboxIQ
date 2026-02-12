@@ -315,8 +315,12 @@ export default function LoginScreen() {
           const sub = Linking.addEventListener("url", handleUrl);
         });
 
+        // Use inboxiq:// for dev client builds, exp:// only for Expo Go
+        const isExpoGo = Constants.appOwnership === "expo";
         const hostUri = Constants.expoConfig?.hostUri || "localhost:8081";
-        const deepLink = btoa(`exp://${hostUri}`);
+        const deepLink = isExpoGo
+          ? btoa(`exp://${hostUri}`)
+          : btoa("inboxiq://");
         const baseUrl = API_URL.replace(/\/api$/, "");
         const startUrl = `${baseUrl}/api/auth/google/start?deep_link=${encodeURIComponent(deepLink)}`;
         await Linking.openURL(startUrl);
@@ -325,13 +329,19 @@ export default function LoginScreen() {
       } else {
         // PRODUCTION: Use openAuthSessionAsync which detects the inboxiq:// redirect
         // and automatically closes the browser, returning the URL.
+        // preferEphemeralSession prevents Safari from reusing cached sessions
+        // which can break deep link detection on iPad.
         const { data } = await authAPI.getGoogleAuthUrl();
         const result = await WebBrowser.openAuthSessionAsync(
           data.url,
-          "inboxiq://auth"
+          "inboxiq://auth",
+          { preferEphemeralSession: true }
         );
         if (result.type === "success") {
           resultUrl = result.url;
+        } else if (result.type === "cancel" || result.type === "dismiss") {
+          // User cancelled — don't show an error
+          return;
         }
       }
 
@@ -349,7 +359,7 @@ export default function LoginScreen() {
           Alert.alert("Sign In Error", "Authentication failed. Please try again.");
         }
       } else {
-        Alert.alert("Timeout", "Sign-in timed out. Please try again.");
+        Alert.alert("Sign In Error", "Sign-in was not completed. Please try again.");
       }
     } catch (error: any) {
       Alert.alert(
