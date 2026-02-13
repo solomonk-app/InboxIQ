@@ -5,3 +5,4 @@ process.env.SUPABASE_SERVICE_KEY = "test-supabase-service-key";
 process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
 process.env.GOOGLE_CLIENT_SECRET = "test-google-client-secret";
 process.env.TOKEN_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+process.env.GEMINI_API_KEY = "test-gemini-api-key";
