@@ -153,13 +153,15 @@ app.use((_req, res) => {
 app.use(errorHandler);
 
 // ─── Start Server ────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n🚀 InboxIQ backend running on http://localhost:${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/health\n`);
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n🚀 InboxIQ backend running on http://localhost:${PORT}`);
+    console.log(`   Health: http://localhost:${PORT}/health\n`);
 
-  // Start the automated digest scheduler
-  startScheduler();
-  console.log(`⏰ Digest scheduler initialized\n`);
-});
+    // Start the automated digest scheduler
+    startScheduler();
+    console.log(`⏰ Digest scheduler initialized\n`);
+  });
+}
 
 export default app;

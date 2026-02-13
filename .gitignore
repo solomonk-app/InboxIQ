@@ -5,3 +5,6 @@
 # Audit reports
 security-audit-*.json
 zap-report.html
+
+# Test coverage
+coverage/
