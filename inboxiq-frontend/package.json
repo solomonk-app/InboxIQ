@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.39.2",
     "@types/react": "~19.1.10",
     "canvas": "^3.2.1",
     "eslint": "^9.39.2",
